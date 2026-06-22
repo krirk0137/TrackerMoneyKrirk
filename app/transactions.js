@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { toast, formatTHB, todayBangkok, monthRange } from "./ui.js";
+import { toast, formatTHB, todayBangkok, monthRange, downloadFile } from "./ui.js";
 
 // --- DOM refs ---
 const tbody = document.getElementById("txn-tbody");
@@ -10,6 +10,7 @@ const fCategory = document.getElementById("f-category");
 const fSearch = document.getElementById("f-search");
 const fClear = document.getElementById("f-clear");
 const btnAdd = document.getElementById("btn-add-txn");
+const btnExport = document.getElementById("btn-export");
 
 const modalEl = document.getElementById("txn-modal");
 const modal = new bootstrap.Modal(modalEl);
@@ -152,8 +153,31 @@ async function confirmDelete(id) {
   loadTransactions();
 }
 
+// --- export CSV (ตามตัวกรองปัจจุบัน) ---
+const csvCell = (v) => {
+  const s = String(v ?? "");
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+};
+
+function exportCsv() {
+  if (!currentRows.length) return toast("error", "ไม่มีรายการให้ export");
+  const header = ["วันที่", "ประเภท", "หมวดหมู่", "จำนวน", "วิธีจ่าย", "โน้ต"];
+  const body = currentRows.map((r) => [
+    r.txn_date,
+    TH_TYPE[r.type],
+    r.category?.name ?? "",
+    r.amount,
+    r.payment_method ?? "",
+    r.note ?? "",
+  ]);
+  const csv = [header, ...body].map((cols) => cols.map(csvCell).join(",")).join("\r\n");
+  const bom = String.fromCharCode(0xfeff); // ให้ Excel อ่านภาษาไทยถูก
+  downloadFile(`transactions-${fMonth.value || "all"}.csv`, bom + csv, "text/csv;charset=utf-8");
+}
+
 // --- events ---
 btnAdd.addEventListener("click", openAdd);
+btnExport.addEventListener("click", exportCsv);
 
 document.querySelectorAll("input[name=txn-type]").forEach((radio) =>
   radio.addEventListener("change", () => fillModalCategories(selectedType()))
@@ -224,6 +248,9 @@ document.addEventListener("auth:logout", () => {
 
 // ซิงก์ dropdown หมวดหมู่เมื่อมีการเพิ่ม/แก้/ลบหมวดในแท็บหมวดหมู่
 document.addEventListener("categories:changed", loadCategories);
+
+// รีโหลดตารางเมื่อมีการสร้างรายการประจำอัตโนมัติ
+document.addEventListener("transactions:changed", loadTransactions);
 
 // เผื่อหน้านี้โหลดตอน login อยู่แล้ว (auth:login ถูก dispatch ไปก่อนโมดูลนี้จะ subscribe)
 const {

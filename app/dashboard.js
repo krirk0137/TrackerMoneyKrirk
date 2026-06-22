@@ -10,6 +10,8 @@ const elRecent = document.getElementById("dash-recent");
 const elPieEmpty = document.getElementById("dash-pie-empty");
 const pieCanvas = document.getElementById("dash-pie");
 const barCanvas = document.getElementById("dash-bar");
+const elBudgetSection = document.getElementById("dash-budget-section");
+const elBudgetList = document.getElementById("dash-budget-list");
 
 const PALETTE = ["#0d6efd", "#dc3545", "#198754", "#ffc107", "#6f42c1", "#fd7e14", "#20c997", "#6c757d", "#d63384", "#0dcaf0"];
 const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย" };
@@ -142,9 +144,51 @@ async function loadRecent() {
     .join("");
 }
 
+// งบประมาณเดือนนี้: หมวดรายจ่ายที่ตั้งงบ → ใช้ไปเท่าไหร่ vs งบ (progress bar)
+async function loadBudget(ym) {
+  const { data: cats } = await supabase
+    .from("categories")
+    .select("id, name, monthly_budget")
+    .eq("type", "expense")
+    .not("monthly_budget", "is", null);
+  if (!cats?.length) {
+    elBudgetSection.classList.add("d-none");
+    return;
+  }
+
+  const { start, end } = monthRange(ym);
+  const { data: tx } = await supabase
+    .from("transactions")
+    .select("category_id, amount")
+    .eq("type", "expense")
+    .gte("txn_date", start)
+    .lte("txn_date", end);
+  const spent = {};
+  for (const t of tx ?? []) spent[t.category_id] = (spent[t.category_id] ?? 0) + Number(t.amount);
+
+  elBudgetSection.classList.remove("d-none");
+  elBudgetList.innerHTML = cats
+    .map((c) => {
+      const used = spent[c.id] || 0;
+      const budget = Number(c.monthly_budget);
+      const ratio = budget > 0 ? used / budget : 0;
+      const color = ratio > 1 ? "bg-danger" : ratio >= 0.8 ? "bg-warning" : "bg-success";
+      return `<div class="mb-2">
+        <div class="d-flex justify-content-between small">
+          <span>${escapeHtml(c.name)}</span>
+          <span class="${used > budget ? "text-danger fw-semibold" : ""}">${formatTHB(used)} / ${formatTHB(budget)}</span>
+        </div>
+        <div class="progress" style="height: 8px;">
+          <div class="progress-bar ${color}" style="width: ${Math.min(100, ratio * 100)}%"></div>
+        </div>
+      </div>`;
+    })
+    .join("");
+}
+
 async function load() {
   const ym = elMonth.value || todayBangkok().slice(0, 7);
-  await Promise.all([loadCardsAndPie(ym), loadBar(ym), loadRecent()]);
+  await Promise.all([loadCardsAndPie(ym), loadBar(ym), loadBudget(ym), loadRecent()]);
 }
 
 // --- events ---

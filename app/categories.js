@@ -1,5 +1,5 @@
 import { supabase } from "./supabaseClient.js";
-import { toast } from "./ui.js";
+import { toast, formatTHB } from "./ui.js";
 
 // --- DOM refs ---
 const incomeList = document.getElementById("cat-income-list");
@@ -12,6 +12,7 @@ const form = document.getElementById("cat-form");
 const modalTitle = document.getElementById("cat-modal-title");
 const fldId = document.getElementById("cat-id");
 const fldName = document.getElementById("cat-name");
+const fldBudget = document.getElementById("cat-budget");
 
 let cats = [];
 
@@ -23,7 +24,7 @@ const escapeHtml = (s) =>
 async function load() {
   const { data, error } = await supabase
     .from("categories")
-    .select("id, name, type, sort_order")
+    .select("id, name, type, sort_order, monthly_budget")
     .order("sort_order")
     .order("name");
   if (error) return toast("error", "โหลดหมวดหมู่ไม่สำเร็จ: " + error.message);
@@ -40,7 +41,7 @@ function renderList(el, list) {
   el.innerHTML = list
     .map(
       (c) => `<li class="list-group-item d-flex justify-content-between align-items-center">
-        <span>${escapeHtml(c.name)}</span>
+        <span>${escapeHtml(c.name)}${c.monthly_budget ? `<span class="badge bg-light text-secondary ms-2">งบ ${formatTHB(c.monthly_budget)}</span>` : ""}</span>
         <span class="text-nowrap">
           <button class="btn btn-sm btn-outline-secondary" data-edit="${c.id}">แก้</button>
           <button class="btn btn-sm btn-outline-danger" data-del="${c.id}">ลบ</button>
@@ -66,6 +67,7 @@ function openEdit(id) {
   fldId.value = c.id;
   modalTitle.textContent = "แก้ไขหมวดหมู่";
   fldName.value = c.name;
+  fldBudget.value = c.monthly_budget ?? "";
   document.getElementById(c.type === "income" ? "cat-type-income" : "cat-type-expense").checked = true;
   modal.show();
 }
@@ -115,7 +117,11 @@ btnAdd.addEventListener("click", openAdd);
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const payload = { name: fldName.value.trim(), type: selectedType() };
+  const payload = {
+    name: fldName.value.trim(),
+    type: selectedType(),
+    monthly_budget: fldBudget.value === "" ? null : Number(fldBudget.value),
+  };
   if (!payload.name) return;
   const id = fldId.value;
   const btn = form.querySelector("button[type=submit]");

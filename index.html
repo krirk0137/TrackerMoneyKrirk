@@ -6,6 +6,9 @@
   <title>บันทึกรายรับ–รายจ่าย</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3/dist/css/bootstrap.min.css" rel="stylesheet" />
   <link href="styles/main.css" rel="stylesheet" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#0d6efd" />
+  <link rel="apple-touch-icon" href="icon.svg" />
 </head>
 <body class="bg-light">
 
@@ -48,13 +51,17 @@
         <li class="nav-item"><button class="nav-link active" data-view="transactions">รายการ</button></li>
         <li class="nav-item"><button class="nav-link" data-view="dashboard">Dashboard</button></li>
         <li class="nav-item"><button class="nav-link" data-view="categories">หมวดหมู่</button></li>
+        <li class="nav-item"><button class="nav-link" data-view="recurring">ประจำ</button></li>
       </ul>
 
       <!-- ===== Transactions ===== -->
       <section id="view-transactions" class="app-view-section">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
           <h2 class="h5 mb-0">รายการรายรับ–รายจ่าย</h2>
-          <button id="btn-add-txn" class="btn btn-primary btn-sm">+ เพิ่มรายการ</button>
+          <div class="d-flex gap-2">
+            <button id="btn-export" class="btn btn-outline-success btn-sm">⬇ CSV</button>
+            <button id="btn-add-txn" class="btn btn-primary btn-sm">+ เพิ่มรายการ</button>
+          </div>
         </div>
 
         <div class="card mb-3">
@@ -141,6 +148,13 @@
           </div>
         </div>
 
+        <div class="card mb-3 d-none" id="dash-budget-section">
+          <div class="card-body">
+            <h3 class="h6">งบประมาณเดือนนี้</h3>
+            <div id="dash-budget-list"></div>
+          </div>
+        </div>
+
         <div class="row g-3 mb-3">
           <div class="col-12 col-lg-5">
             <div class="card h-100"><div class="card-body">
@@ -187,6 +201,21 @@
             </div></div>
           </div>
         </div>
+      </section>
+
+      <!-- ===== Recurring ===== -->
+      <section id="view-recurring" class="app-view-section d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h2 class="h5 mb-0">รายการประจำ</h2>
+          <div class="d-flex gap-2">
+            <button id="btn-gen-rec" class="btn btn-outline-primary btn-sm">ลงของเดือนนี้</button>
+            <button id="btn-add-rec" class="btn btn-primary btn-sm">+ เพิ่มรายการประจำ</button>
+          </div>
+        </div>
+        <div class="card"><div class="card-body">
+          <p class="text-muted small">รายการประจำจะถูกสร้างให้อัตโนมัติเมื่อเปิดแอปในแต่ละเดือน — หรือกด "ลงของเดือนนี้" เพื่อสร้างทันที</p>
+          <ul class="list-group list-group-flush" id="rec-list"></ul>
+        </div></div>
       </section>
     </div>
   </div>
@@ -277,6 +306,71 @@
               <label class="form-label">ชื่อหมวดหมู่</label>
               <input type="text" id="cat-name" class="form-control" maxlength="50" required />
             </div>
+            <div class="mb-3">
+              <label class="form-label">งบต่อเดือน (บาท) <span class="text-muted small">— ไม่ใส่ก็ได้ เหมาะกับหมวดรายจ่าย</span></label>
+              <input type="number" id="cat-budget" class="form-control" step="0.01" min="0" placeholder="เช่น 5000" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">บันทึก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: เพิ่ม / แก้ไขรายการประจำ -->
+  <div class="modal fade" id="rec-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="rec-form">
+          <div class="modal-header">
+            <h5 class="modal-title" id="rec-modal-title">เพิ่มรายการประจำ</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="rec-id" />
+            <div class="mb-3">
+              <label class="form-label">ประเภท</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="rec-type" id="rec-type-expense" value="expense" checked />
+                <label class="btn btn-outline-danger" for="rec-type-expense">รายจ่าย</label>
+                <input type="radio" class="btn-check" name="rec-type" id="rec-type-income" value="income" />
+                <label class="btn btn-outline-success" for="rec-type-income">รายรับ</label>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">จำนวนเงิน (บาท)</label>
+              <input type="number" id="rec-amount" class="form-control" step="0.01" min="0.01" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">หมวดหมู่</label>
+              <select id="rec-category" class="form-select"><option value="">— ไม่ระบุ —</option></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">ลงทุกวันที่ (ของเดือน)</label>
+              <input type="number" id="rec-day" class="form-control" min="1" max="31" value="1" required />
+              <div class="form-text">ถ้าเดือนไหนไม่มีวันนั้น (เช่น 31) จะใช้วันสุดท้ายของเดือนแทน</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">วิธีจ่าย</label>
+              <select id="rec-payment" class="form-select">
+                <option value="">— ไม่ระบุ —</option>
+                <option>เงินสด</option>
+                <option>โอน</option>
+                <option>บัตรเครดิต</option>
+                <option>อื่นๆ</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">โน้ต</label>
+              <input type="text" id="rec-note" class="form-control" maxlength="200" />
+            </div>
+            <div class="form-check">
+              <input type="checkbox" id="rec-active" class="form-check-input" checked />
+              <label class="form-check-label" for="rec-active">เปิดใช้งาน (สร้างอัตโนมัติทุกเดือน)</label>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
@@ -295,5 +389,11 @@
   <script type="module" src="app/transactions.js"></script>
   <script type="module" src="app/dashboard.js"></script>
   <script type="module" src="app/categories.js"></script>
+  <script type="module" src="app/recurring.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    }
+  </script>
 </body>
 </html>

@@ -9,6 +9,9 @@
 - [x] Phase 3 — Dashboard + กราฟ (การ์ดสรุป + วงกลม + แท่ง 6 เดือน + รายการล่าสุด)
 - [x] Phase 4 — Categories management (CRUD แยก income/expense + เตือนก่อนลบหมวดที่มีรายการ)
 - [x] Phase 5 — Deploy GitHub Pages + keep-alive / backup (workflows ใน `.github/workflows/`)
+- [x] Phase 6 — Export CSV · งบประมาณรายหมวด · รายการประจำ (recurring) · PWA ติดตั้งบนมือถือ
+
+> ⚠️ Phase 6 ต้องรัน `sql/05_phase6.sql` ใน Supabase SQL Editor ก่อน (เพิ่มคอลัมน์ `monthly_budget` + ตาราง `recurring`) ไม่งั้นแท็บหมวดหมู่/ประจำจะ error
 
 ## ตั้งค่า Supabase (ทำครั้งเดียว)
 

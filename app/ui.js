@@ -30,3 +30,14 @@ export function monthRange(ym) {
   const lastDay = new Date(y, m, 0).getDate(); // m เป็น 1-based → day 0 ของเดือนถัดไป = วันสุดท้ายของเดือน m
   return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, "0")}` };
 }
+
+// ดาวน์โหลดไฟล์จากข้อความในเบราว์เซอร์ (ใช้กับ export CSV)
+export function downloadFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
