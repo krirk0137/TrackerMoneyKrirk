@@ -1,5 +1,5 @@
 # บันทึกรายรับ–รายจ่ายส่วนตัว (TrackerMoneyKrirk)
-
+Database Supabest https://supabase.com/dashboard/project/ygpkqwuhmvsewcdcsgro/auth/providers
 เว็บบันทึกรายรับ–รายจ่ายส่วนตัว · static frontend (HTML + Bootstrap 5 + vanilla JS) + Supabase (Postgres + Auth + RLS) · deploy ฟรีบน GitHub Pages
 
 ## สถานะ
