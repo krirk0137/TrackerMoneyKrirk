@@ -1,0 +1,23 @@
+name: Supabase Keep-Alive
+
+# กัน Supabase free tier ถูก pause หลังไม่มี request เข้า DB ครบ 7 วัน
+# เรียก RPC keep_alive() (grant ให้ anon แล้ว) เบาๆ ทุก 3 วัน — ไม่แตะข้อมูลจริง
+# URL + publishable key เป็น public โดยออกแบบ จึง hardcode ได้ (ตัวเดียวกับใน app/config.js)
+
+on:
+  schedule:
+    - cron: "0 3 */3 * *" # ทุก 3 วัน 03:00 UTC
+  workflow_dispatch: # กดรันเองได้จากแท็บ Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call keep_alive RPC
+        run: |
+          curl -sf -X POST \
+            "https://ygpkqwuhmvsewcdcsgro.supabase.co/rest/v1/rpc/keep_alive" \
+            -H "apikey: sb_publishable_GHxrYZFQR4vIUEhJm_fscg_rf0x5UQa" \
+            -H "Authorization: Bearer sb_publishable_GHxrYZFQR4vIUEhJm_fscg_rf0x5UQa" \
+            -H "Content-Type: application/json" \
+            -d '{}'

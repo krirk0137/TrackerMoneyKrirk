@@ -1,0 +1,29 @@
+name: Supabase Backup
+
+# Dump ทั้ง DB เป็นไฟล์ เก็บเป็น artifact (free tier ไม่มี backup อัตโนมัติ)
+# ใช้ secret SUPABASE_DB_URL = connection string ที่มี password → ตั้งใน repo Settings → Secrets เท่านั้น
+# ⚠️ ใช้ "Session pooler" connection string (IPv4) เพราะ GitHub Actions runner เป็น IPv4
+#    direct connection (db.xxx.supabase.co) อาจเป็น IPv6-only แล้วต่อไม่ติด
+
+on:
+  schedule:
+    - cron: "0 18 * * 0" # ทุกวันอาทิตย์ 18:00 UTC (~เช้าจันทร์ไทย)
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump database
+        run: supabase db dump --db-url "${{ secrets.SUPABASE_DB_URL }}" -f backup.sql
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_id }}
+          path: backup.sql
+          retention-days: 30

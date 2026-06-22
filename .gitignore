@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# secrets — ห้าม commit เด็ดขาด
+.env
+.env.*
+backup.sql
+
+# supabase CLI local
+supabase/.temp/
