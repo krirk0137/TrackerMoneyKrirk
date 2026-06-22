@@ -1,6 +1,7 @@
 # บันทึกรายรับ–รายจ่ายส่วนตัว (TrackerMoneyKrirk)
 
 > Supabase dashboard: https://supabase.com/dashboard/project/ygpkqwuhmvsewcdcsgro
+> p ! @ K 7
 
 เว็บบันทึกรายรับ–รายจ่ายส่วนตัว · static frontend (HTML + Bootstrap 5 + vanilla JS) + Supabase (Postgres + Auth + RLS) · deploy ฟรีบน GitHub Pages
 
