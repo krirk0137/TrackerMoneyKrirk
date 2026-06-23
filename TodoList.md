@@ -14,3 +14,5 @@ TodoList
 #เป้าหมายออมเงิน
 
 #รองรับ OCR, Upload ใบเสร็จ สลิป บิล ไหม
+
+#ai assistant ใส่ของ 9arm กับ gemini ฟรี หรือ gpt ฟรีถ้ามี 
