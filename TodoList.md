@@ -31,7 +31,5 @@ Calendar View
 1 User หลายบัญชี 
 การโอนระหว่างบัญชี (Transfer) ที่ไม่นับเป็นรายจ่าย/รายรับ (จุดที่หลายแอปทำพลาดแล้วตัวเลขเพี้ยน)
 
-อื่นๆ
-gpt:https://chatgpt.com/c/6a39fa4c-e984-83ec-916a-7fe784a54b50
-claude:https://claude.ai/chat/9f0b256a-f3d6-4361-bc25-05c3d3d91097
+อื่นๆ อย่าลืมดู TodoListFromGPT, TodoListFromClaude ด้วยนะ 
 ถ้ายิ่งใหญ่ควรทำ V.2 ไหม
