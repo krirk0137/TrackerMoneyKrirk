@@ -1,0 +1,485 @@
+https://claude.ai/chat/9f0b256a-f3d6-4361-bc25-05c3d3d91097
+
+# Expense Tracker — สรุปโปรเจกต์ & แผนงาน
+
+> Stack เป้าหมาย: **GitHub Pages (frontend) + Supabase (PostgreSQL/Auth/Storage)** — free tier
+> Timezone สำหรับรายงาน: **Asia/Bangkok** · สกุลเงินหลัก: **THB**
+
+---
+
+## 1. ฟังก์ชันที่ควรมี (จัดตามลำดับความสำคัญ)
+
+### Must-have (MVP)
+- บันทึกธุรกรรม: จำนวนเงิน, ประเภท (รายรับ/รายจ่าย/โอน), วันที่-เวลา, หมวดหมู่, บัญชี, โน้ต
+- หมวดหมู่กำหนดเองได้ + ไอคอน/สี + หมวดย่อย (sub-category)
+- หลายบัญชี/กระเป๋าเงิน (เงินสด, ธนาคาร, บัตรเครดิต, e-wallet) แต่ละบัญชีมียอดของตัวเอง
+- ยอดคงเหลือคำนวณอัตโนมัติ (รายบัญชี + รวม)
+- รายการธุรกรรม + แก้ไข/ลบ
+- สรุปภาพรวมตามช่วงเวลา (วัน/เดือน/ปี)
+
+### Should-have
+- งบประมาณ (budget) ต่อหมวด ต่อเดือน + แจ้งเตือนเมื่อใกล้/เกิน
+- รายการประจำ (recurring): เงินเดือน, ค่าเช่า, subscription
+- โอนระหว่างบัญชี (transfer) ที่ **ไม่นับเป็นรายรับ/รายจ่าย**
+- รายงาน/กราฟ: วงกลมตามหมวด, เทรนด์รายเดือน, เทียบเดือนต่อเดือน
+- ค้นหา + ฟิลเตอร์ (วันที่/หมวด/บัญชี/จำนวน/คีย์เวิร์ด)
+- แท็ก (tags) ข้ามหมวด เช่น `#ทริปญี่ปุ่น`
+- หลายสกุลเงิน + อัตราแลกเปลี่ยน (บันทึก JPY → สรุปเป็น THB)
+
+### Nice-to-have
+- แนบรูปใบเสร็จ (Supabase Storage)
+- เป้าหมายการออม (savings goals) + progress
+- Import/Export CSV/Excel (backup เองได้ ไม่ถูกล็อกข้อมูล)
+- จัดการหนี้/ลูกหนี้
+- Net worth tracking
+- แนะนำหมวดอัตโนมัติจากชื่อร้าน/คีย์เวิร์ด
+- Sync หลายอุปกรณ์ + PWA/offline
+
+### UX ที่สำคัญที่สุด (อย่าข้าม)
+- **Quick Add**: เปิดมาเจอแป้นตัวเลขทันที บันทึกได้ใน 3–5 วินาที
+- แป้นแบบเครื่องคิดเลข (พิมพ์ `120+45` ได้)
+- จำค่า default หมวด/บัญชีที่ใช้บ่อย
+- รองรับภาษาไทย + format เงินบาท
+- Dark mode, ตัวเลขใหญ่อ่านง่าย
+
+---
+
+## 2. Database Schema (Supabase / PostgreSQL)
+
+รันทั้งก้อนใน **Supabase SQL Editor** ได้ตั้งแต่บนลงล่าง
+
+```sql
+-- =====================================================================
+--  EXPENSE TRACKER — Supabase / PostgreSQL schema
+--  Run top-to-bottom in the Supabase SQL Editor.
+--  Timezone assumption for reporting: Asia/Bangkok.
+--  All amounts use NUMERIC(14,2). NEVER use float for money.
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- 0) Extensions (gen_random_uuid is built-in on PG13+, this is safe)
+-- ---------------------------------------------------------------------
+create extension if not exists pgcrypto;
+
+-- ---------------------------------------------------------------------
+-- 1) Shared helper: auto-update updated_at on every UPDATE
+-- ---------------------------------------------------------------------
+create or replace function set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+-- =====================================================================
+-- 2) TABLES
+-- =====================================================================
+
+-- 2.1 Accounts / wallets ----------------------------------------------
+create table if not exists accounts (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  name            text not null,
+  type            text not null default 'cash'
+                    check (type in ('cash','bank','credit_card','e_wallet','savings','investment','other')),
+  currency        char(3) not null default 'THB',
+  initial_balance numeric(14,2) not null default 0,
+  icon            text,
+  color           text,
+  is_archived     boolean not null default false,
+  sort_order      int not null default 0,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- 2.2 Categories (supports sub-categories via parent_id) --------------
+create table if not exists categories (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  name        text not null,
+  type        text not null check (type in ('income','expense')),
+  parent_id   uuid references categories(id) on delete cascade,
+  icon        text,
+  color       text,
+  is_archived boolean not null default false,
+  sort_order  int not null default 0,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- 2.3 Transactions (the heart of the app) -----------------------------
+create table if not exists transactions (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  type            text not null check (type in ('income','expense','transfer')),
+  amount          numeric(14,2) not null check (amount > 0),
+  account_id      uuid not null references accounts(id) on delete restrict,   -- source/from
+  to_account_id   uuid references accounts(id) on delete restrict,            -- transfer destination only
+  to_amount       numeric(14,2) check (to_amount is null or to_amount > 0),   -- cross-currency transfer amount on the destination side
+  category_id     uuid references categories(id) on delete set null,
+  transaction_date timestamptz not null default now(),
+  note            text,
+  currency        char(3) not null default 'THB',
+  exchange_rate   numeric(18,8) not null default 1 check (exchange_rate > 0), -- rate to base currency (THB)
+  amount_base     numeric(16,2) generated always as (round(amount * exchange_rate, 2)) stored,
+  receipt_url     text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+
+  -- transfer integrity: transfers move between two different accounts and carry no category;
+  -- income/expense must NOT set a destination account.
+  constraint chk_transfer check (
+    (type = 'transfer'
+       and to_account_id is not null
+       and to_account_id <> account_id
+       and category_id is null)
+    or
+    (type <> 'transfer'
+       and to_account_id is null
+       and to_amount is null)
+  )
+);
+
+-- 2.4 Tags + transaction <-> tag junction -----------------------------
+create table if not exists tags (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  name       text not null,
+  color      text,
+  created_at timestamptz not null default now(),
+  unique (user_id, name)
+);
+
+create table if not exists transaction_tags (
+  transaction_id uuid not null references transactions(id) on delete cascade,
+  tag_id         uuid not null references tags(id) on delete cascade,
+  user_id        uuid not null references auth.users(id) on delete cascade, -- duplicated for simple RLS
+  primary key (transaction_id, tag_id)
+);
+
+-- 2.5 Budgets (per category, per period; category_id NULL = overall) --
+create table if not exists budgets (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  category_id  uuid references categories(id) on delete cascade,
+  amount       numeric(14,2) not null check (amount > 0),
+  period_type  text not null default 'month' check (period_type in ('week','month','year')),
+  period_start date not null,           -- first day of the period, e.g. 2026-06-01
+  rollover     boolean not null default false,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (user_id, category_id, period_type, period_start)
+);
+
+-- 2.6 Recurring rules (the generator creates real transactions) -------
+create table if not exists recurring_rules (
+  id              uuid primary key default gen_random_uuid(),
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  type            text not null check (type in ('income','expense','transfer')),
+  amount          numeric(14,2) not null check (amount > 0),
+  account_id      uuid not null references accounts(id) on delete cascade,
+  to_account_id   uuid references accounts(id) on delete cascade,
+  category_id     uuid references categories(id) on delete set null,
+  note            text,
+  currency        char(3) not null default 'THB',
+  frequency       text not null check (frequency in ('daily','weekly','monthly','yearly')),
+  interval_count  int not null default 1 check (interval_count >= 1), -- every N units
+  start_date      date not null,
+  end_date        date,
+  next_run_date   date not null,
+  last_generated_date date,
+  is_active       boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+-- 2.7 Savings goals ---------------------------------------------------
+create table if not exists savings_goals (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references auth.users(id) on delete cascade,
+  name           text not null,
+  target_amount  numeric(14,2) not null check (target_amount > 0),
+  current_amount numeric(14,2) not null default 0,
+  target_date    date,
+  account_id     uuid references accounts(id) on delete set null,
+  icon           text,
+  color          text,
+  is_completed   boolean not null default false,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+-- =====================================================================
+-- 3) INDEXES (everything is filtered by user_id first)
+-- =====================================================================
+create index if not exists idx_accounts_user           on accounts (user_id);
+create index if not exists idx_categories_user          on categories (user_id);
+create index if not exists idx_categories_parent        on categories (parent_id);
+create index if not exists idx_tx_user_date             on transactions (user_id, transaction_date desc);
+create index if not exists idx_tx_user_type             on transactions (user_id, type);
+create index if not exists idx_tx_account               on transactions (account_id);
+create index if not exists idx_tx_to_account            on transactions (to_account_id);
+create index if not exists idx_tx_category              on transactions (category_id);
+create index if not exists idx_tags_user                on tags (user_id);
+create index if not exists idx_txtags_tag               on transaction_tags (tag_id);
+create index if not exists idx_budgets_user_period      on budgets (user_id, period_start);
+create index if not exists idx_recurring_due            on recurring_rules (user_id, next_run_date) where is_active;
+create index if not exists idx_goals_user               on savings_goals (user_id);
+
+-- =====================================================================
+-- 4) updated_at TRIGGERS
+-- =====================================================================
+create trigger trg_accounts_updated       before update on accounts        for each row execute function set_updated_at();
+create trigger trg_categories_updated     before update on categories      for each row execute function set_updated_at();
+create trigger trg_transactions_updated   before update on transactions    for each row execute function set_updated_at();
+create trigger trg_budgets_updated        before update on budgets         for each row execute function set_updated_at();
+create trigger trg_recurring_updated      before update on recurring_rules for each row execute function set_updated_at();
+create trigger trg_goals_updated          before update on savings_goals   for each row execute function set_updated_at();
+
+-- =====================================================================
+-- 5) ROW LEVEL SECURITY
+--    One FOR ALL policy per table. USING -> read/update/delete,
+--    WITH CHECK -> insert/update. (select auth.uid()) is cached per
+--    statement -> better performance than bare auth.uid().
+-- =====================================================================
+alter table accounts          enable row level security;
+alter table categories        enable row level security;
+alter table transactions      enable row level security;
+alter table tags              enable row level security;
+alter table transaction_tags  enable row level security;
+alter table budgets           enable row level security;
+alter table recurring_rules   enable row level security;
+alter table savings_goals     enable row level security;
+
+create policy "own accounts"          on accounts         for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own categories"        on categories       for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own transactions"      on transactions     for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own tags"              on tags             for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own transaction_tags"  on transaction_tags for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own budgets"           on budgets          for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own recurring_rules"   on recurring_rules  for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "own savings_goals"     on savings_goals    for all using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+-- =====================================================================
+-- 6) VIEW: live account balances
+--    security_invoker = on  -> the view respects each caller's RLS,
+--    so users only ever see their own balances.
+-- =====================================================================
+create or replace view account_balances
+with (security_invoker = on) as
+select
+  a.id          as account_id,
+  a.user_id,
+  a.name,
+  a.currency,
+  a.type,
+  a.is_archived,
+  a.initial_balance
+    + coalesce(sum(case when t.type = 'income'   and t.account_id    = a.id then t.amount else 0 end), 0)
+    - coalesce(sum(case when t.type = 'expense'  and t.account_id    = a.id then t.amount else 0 end), 0)
+    - coalesce(sum(case when t.type = 'transfer' and t.account_id    = a.id then t.amount else 0 end), 0)
+    + coalesce(sum(case when t.type = 'transfer' and t.to_account_id = a.id then coalesce(t.to_amount, t.amount) else 0 end), 0)
+    as current_balance
+from accounts a
+left join transactions t
+  on t.account_id = a.id or t.to_account_id = a.id
+group by a.id;
+
+-- =====================================================================
+-- 7) RPC FUNCTIONS (call from the client via supabase.rpc(...))
+--    All filter explicitly by the caller's auth.uid().
+-- =====================================================================
+
+-- 7.1 Monthly income / expense / net (in base currency, Bangkok time)
+create or replace function get_monthly_summary(p_year int, p_month int)
+returns table (total_income numeric, total_expense numeric, net numeric)
+language sql
+stable
+security invoker
+as $$
+  select
+    coalesce(sum(amount_base) filter (where type = 'income'), 0)  as total_income,
+    coalesce(sum(amount_base) filter (where type = 'expense'), 0) as total_expense,
+    coalesce(sum(amount_base) filter (where type = 'income'), 0)
+      - coalesce(sum(amount_base) filter (where type = 'expense'), 0) as net
+  from transactions
+  where user_id = (select auth.uid())
+    and date_trunc('month', transaction_date at time zone 'Asia/Bangkok')
+        = make_date(p_year, p_month, 1);
+$$;
+
+-- 7.2 Spending breakdown by category for a date range (expense only)
+create or replace function get_category_breakdown(p_from date, p_to date)
+returns table (category_id uuid, category_name text, total numeric, tx_count bigint)
+language sql
+stable
+security invoker
+as $$
+  select
+    c.id,
+    coalesce(c.name, 'ไม่ระบุหมวด') as category_name,
+    sum(t.amount_base) as total,
+    count(*)           as tx_count
+  from transactions t
+  left join categories c on c.id = t.category_id
+  where t.user_id = (select auth.uid())
+    and t.type = 'expense'
+    and (t.transaction_date at time zone 'Asia/Bangkok')::date between p_from and p_to
+  group by c.id, c.name
+  order by total desc;
+$$;
+
+-- 7.3 Budget status for a given month (spent vs budget per category)
+create or replace function get_budget_status(p_period_start date)
+returns table (
+  budget_id     uuid,
+  category_id   uuid,
+  category_name text,
+  budget_amount numeric,
+  spent         numeric,
+  remaining     numeric,
+  pct_used      numeric
+)
+language sql
+stable
+security invoker
+as $$
+  with month_spend as (
+    select category_id, sum(amount_base) as spent
+    from transactions
+    where user_id = (select auth.uid())
+      and type = 'expense'
+      and date_trunc('month', transaction_date at time zone 'Asia/Bangkok')
+          = date_trunc('month', p_period_start::timestamp)
+    group by category_id
+  )
+  select
+    b.id,
+    b.category_id,
+    coalesce(c.name, 'งบรวมทั้งหมด') as category_name,
+    b.amount as budget_amount,
+    coalesce(ms.spent, 0) as spent,
+    b.amount - coalesce(ms.spent, 0) as remaining,
+    round(coalesce(ms.spent, 0) / b.amount * 100, 1) as pct_used
+  from budgets b
+  left join categories c  on c.id = b.category_id
+  left join month_spend ms on ms.category_id = b.category_id
+  where b.user_id = (select auth.uid())
+    and b.period_type = 'month'
+    and b.period_start = p_period_start
+  order by pct_used desc;
+$$;
+
+-- =====================================================================
+-- 8) SEED default Thai categories for a user
+-- =====================================================================
+create or replace function seed_default_categories(p_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- expense
+  insert into categories (user_id, name, type, icon, sort_order) values
+    (p_user, 'อาหาร & เครื่องดื่ม', 'expense', '🍜', 1),
+    (p_user, 'เดินทาง / ขนส่ง',     'expense', '🚆', 2),
+    (p_user, 'ช้อปปิ้ง',            'expense', '🛍️', 3),
+    (p_user, 'ที่พัก / ค่าเช่า',     'expense', '🏠', 4),
+    (p_user, 'บิล / สาธารณูปโภค',    'expense', '🧾', 5),
+    (p_user, 'สุขภาพ',              'expense', '💊', 6),
+    (p_user, 'บันเทิง',             'expense', '🎮', 7),
+    (p_user, 'ท่องเที่ยว',          'expense', '✈️', 8),
+    (p_user, 'การศึกษา',            'expense', '📚', 9),
+    (p_user, 'อื่นๆ',               'expense', '📦', 10);
+
+  -- income
+  insert into categories (user_id, name, type, icon, sort_order) values
+    (p_user, 'เงินเดือน',          'income', '💰', 1),
+    (p_user, 'โบนัส',             'income', '🎁', 2),
+    (p_user, 'รายได้เสริม',        'income', '💼', 3),
+    (p_user, 'ดอกเบี้ย / ปันผล',   'income', '📈', 4),
+    (p_user, 'อื่นๆ',              'income', '➕', 5);
+end;
+$$;
+
+-- 8.1 Auto-seed on signup (optional). Runs as definer; ignore if a user
+--     can already exist before this trigger is created.
+create or replace function handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform seed_default_categories(new.id);
+
+  -- give every new user one cash wallet to start with
+  insert into accounts (user_id, name, type, icon)
+  values (new.id, 'เงินสด', 'cash', '💵');
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
+
+-- =====================================================================
+--  DONE.
+-- =====================================================================
+```
+
+---
+
+## 3. หมายเหตุการออกแบบ (ทำไมถึงทำแบบนี้)
+
+**เรื่องเงิน** — ใช้ `numeric(14,2)` ทุกที่ ห้าม float (ปัดเศษเพี้ยน) · `amount > 0` เป็น constraint เสมอ แล้วใช้ฟิลด์ `type` แยกทิศทาง ไม่เก็บเลขติดลบ → รวมยอด/query ง่ายกว่า
+
+**Transfer (จุดที่แอปอื่นทำพัง)** — `chk_transfer` บังคับว่า ถ้า `type='transfer'` ต้องมี `to_account_id` ที่ต่างจากต้นทาง + ห้ามมี category; ถ้าเป็น income/expense ห้ามมี `to_account_id` → ทำให้โอนเงิน "ไม่นับเป็นรายรับ/รายจ่าย" อัตโนมัติ แต่ยอดบัญชีขยับถูกต้อง · มี `to_amount` เผื่อโอนข้ามสกุลเงิน
+
+**ยอดคงเหลือ = View ไม่ใช่คอลัมน์** — `account_balances` คำนวณสดจาก `initial_balance + ธุรกรรม` ข้อดี: ไม่มีทางหลุด sync; ข้อเสีย: ช้าลงเมื่อธุรกรรมเยอะระดับหมื่น+ (สำหรับ personal app เพียงพอ) · ใส่ `security_invoker = on` ให้ View เคารพ RLS (ถ้าลืม View จะ bypass RLS เห็นข้อมูลคนอื่น)
+
+**Multi-currency** — ธุรกรรมเก็บ `currency` + `exchange_rate` (เทียบ THB) แล้ว `amount_base` เป็น generated column คูณอัตโนมัติ → บันทึก JPY ตอนเที่ยว สรุปเป็น THB ได้
+
+**RLS** — ทุกตารางเปิด RLS ใช้ `(select auth.uid()) = user_id` (ห่อ select เพื่อ cache ผลต่อ statement → เร็วกว่า) · `transaction_tags` ยอม duplicate `user_id` เพื่อให้ policy ตรงไปตรงมา ไม่ต้อง join กลับ
+
+**Auto-seed** — trigger `on_auth_user_created` แจกหมวดหมู่ไทย + กระเป๋าเงินสด 1 ใบ ให้ user ใหม่ เปิดแอปมาบันทึกได้เลย ไม่เจอหน้าจอว่าง
+
+---
+
+## 4. สิ่งที่ต้องทำต่อ (TODO checklist)
+
+### Backend / Database
+- [ ] รัน schema นี้บน Supabase จริง แล้วเช็ก error
+- [ ] เขียน **recurring generator** — ฟังก์ชันสร้างธุรกรรมจริงตาม `recurring_rules` (Edge Function + pg_cron หรือ GitHub Action รันรายวัน)
+- [ ] ตั้ง **keep-alive GitHub Action** กัน Supabase free-tier ถูก pause
+- [ ] (ถ้าใช้รูปใบเสร็จ) สร้าง Storage bucket + RLS policy ของ Storage
+- [ ] ทบทวน: `savings_goals.current_amount` ตอนนี้ต้อง update เอง — ถ้าอยากผูกกับธุรกรรมจริงต้องออกแบบเพิ่ม
+
+### Frontend
+- [ ] หน้า Quick Add (แป้นเลข + บันทึก 3–5 วิ)
+- [ ] หน้ารายการธุรกรรม + ฟิลเตอร์/ค้นหา
+- [ ] Dashboard สรุป (เรียก `get_monthly_summary`, `get_category_breakdown`)
+- [ ] หน้า budget (เรียก `get_budget_status`) + แจ้งเตือนใกล้/เกิน
+- [ ] จัดการบัญชี / หมวดหมู่ / แท็ก
+- [ ] PWA + offline (เผื่อบันทึกตอนเน็ตหลุด)
+- [ ] รองรับภาษาไทย + format เงินบาท + dark mode
+
+### Optional ที่ผมเสนอทำต่อให้ได้
+- [ ] **recurring generator** เต็มรูปแบบ
+- [ ] **ER diagram** ให้เห็นภาพความสัมพันธ์ตาราง
+- [ ] **TypeScript types + ฟังก์ชัน CRUD** ฝั่ง client (supabase-js)
+
+---
+
+## 5. ข้อควรระวัง / ยังไม่ได้ verify
+
+- schema นี้ **ยังไม่ได้รันบน Supabase จริง** — เขียนตามมาตรฐาน PG15 (ที่ Supabase ใช้) ถ้าเจอ error ตอนรันให้ส่งมาแก้
+- `recurring_rules` มีแค่ schema **ยังไม่มีตัว generator**
+- `account_balances` เป็น View คำนวณสด — ถ้าธุรกรรมเยอะมากในอนาคตค่อยพิจารณาเปลี่ยนเป็น cached balance + trigger
