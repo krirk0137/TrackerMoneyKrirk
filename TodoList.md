@@ -34,3 +34,4 @@ Calendar View
 อื่นๆ
 gpt:https://chatgpt.com/c/6a39fa4c-e984-83ec-916a-7fe784a54b50
 claude:https://claude.ai/chat/9f0b256a-f3d6-4361-bc25-05c3d3d91097
+ถ้ายิ่งใหญ่ควรทำ V.2 ไหม
