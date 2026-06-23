@@ -12,9 +12,10 @@
 - **Repo:** https://github.com/krirk0137/TrackerMoneyKrirk
 - เจ้าของถนัด HTML/Bootstrap/JS แบบ vanilla · สื่อสารภาษาไทย
 
-## สถานะปัจจุบัน (2026-06-23): Phase 1–6 เสร็จ + deploy แล้ว
+## สถานะปัจจุบัน (2026-06-24): Phase 1–6 + V1.5 เสร็จ (V1.5 ยังไม่ deploy — รอรัน sql/06 + push)
 
 ฟีเจอร์ที่มี: Login+RLS · CRUD รายการ + filter + Export CSV · Dashboard (การ์ดสรุป + กราฟวงกลม/แท่ง 6 เดือน + รายการล่าสุด + งบประมาณรายหมวด) · จัดการหมวดหมู่ · รายการประจำ (auto-gen รายเดือน) · PWA · keep-alive + backup workflows
+**V1.5 (2026-06-24):** Dark mode · ปฏิทินรายวัน · เป้าหมายออมเงิน · เพิ่มหลายวันพร้อมกัน · แจ้งเตือนงบ 50/80/100% · โน้ตในรายการประจำ/tooltip กราฟ/กาง row dashboard
 
 ---
 
@@ -58,16 +59,16 @@
 
 ที่มา: รวมจาก TodoList.md (เจ้าของ) + TodoListFromClaude + TodoListFromGPT
 
-### ▶ V1.5 — quick wins บน schema เดิม (ทำก่อน คุ้มสุด เสี่ยงต่ำ)
-- [ ] โชว์ "โน้ต" ในหน้ารายการประจำ
-- [ ] Dashboard: กาง row ดูโน้ตแต่ละรายการ (expand recent list)
-- [ ] เพิ่มรายการหลายวันพร้อมกัน (เลือกหมวด+จำนวน แล้วติ๊กวันที่ 1,5,6,7…) — loop insert
-- [ ] Calendar view (รายรับ-จ่ายรายวัน, เขียว=รับ แดง=จ่าย)
-- [ ] เป้าหมายออมเงิน (savings goals) — ตารางใหม่ ไม่กระทบของเดิม
-- [ ] แจ้งเตือนงบ 50/80/100%
-- [ ] Dark mode
-- [ ] โน้ตใน tooltip กราฟ (โชว์เป็น list ต่อ slice)
-- [ ] (option) แนบรูปใบเสร็จ → Supabase Storage + RLS · Export PDF/Excel
+### ▶ V1.5 — quick wins บน schema เดิม (✅ เสร็จ 2026-06-24 ยกเว้นข้อ option)
+- [x] โชว์ "โน้ต" ในหน้ารายการประจำ — `recurring.js` (บรรทัดโน้ตใต้รายการ)
+- [x] Dashboard: กาง row ดูโน้ตแต่ละรายการ — `dashboard.js` (คลิกแถวรายการล่าสุด → กางโน้ต+วิธีจ่าย)
+- [x] เพิ่มรายการหลายวันพร้อมกัน — `transactions.js` + modal `#multi-modal` (ปุ่ม "+ หลายวัน", ติ๊กวัน → loop insert)
+- [x] Calendar view — แท็บ "ปฏิทิน" `calendar.js` (เขียว=รับ แดง=จ่าย, คลิกวันดูรายการ)
+- [x] เป้าหมายออมเงิน (savings goals) — แท็บ "ออมเงิน" `savings.js` + `sql/06_savings.sql` ⚠️ **ต้องรัน SQL ก่อนใช้**
+- [x] แจ้งเตือนงบ 50/80/100% — `dashboard.js` (ไอคอน 🟢🟡⚠️🔴 + แบนเนอร์สรุป)
+- [x] Dark mode — `theme.js` (ปุ่ม 🌙/☀️ บน navbar, จำใน localStorage, ปรับสี Chart ด้วย)
+- [x] โน้ตใน tooltip กราฟ — `dashboard.js` renderPie (afterBody แสดงโน้ตต่อ slice สูงสุด 5)
+- [ ] (option) แนบรูปใบเสร็จ → Supabase Storage + RLS · Export PDF/Excel — **ยังไม่ทำ (ของหนัก ข้ามไปก่อน)**
 
 ### ▶ V2 — รื้อ/ขยาย schema ครั้งเดียว (ยังอยู่ Supabase + web)
 **ตัวเอก: หลายบัญชี + โอนระหว่างบัญชี (ไม่นับเป็นรายรับ/จ่าย)** — เจ้าของอยากได้ชัดเจน
@@ -91,6 +92,7 @@
 ---
 
 ## ค้างอยู่ / housekeeping (เช็คก่อนทำงานใหม่)
+- [ ] 🆕 **รัน `sql/06_savings.sql` บน Supabase** — แท็บ "ออมเงิน" จะ error 42P01/42501 ถ้ายังไม่รัน (V1.5)
 - [ ] ยืนยันว่ารัน `sql/05_phase6.sql` บน Supabase แล้ว (ถ้าแท็บหมวดหมู่/ประจำ error = ยังไม่รัน)
 - [ ] 🔑 **reset รหัส database** (เคยหลุดในแชต `!@Krirk0137`) + อัปเดต GitHub secret `SUPABASE_DB_URL` + **ลบบรรทัดใบ้รหัสใน README** (`> p ! @ K 7`)
 - [ ] ทดสอบ RLS: สร้าง user คนที่ 2 ยืนยันว่าเห็นข้อมูลกันไม่ได้

@@ -23,6 +23,19 @@ const fldDate = document.getElementById("txn-date");
 const fldPayment = document.getElementById("txn-payment");
 const fldNote = document.getElementById("txn-note");
 
+// modal "เพิ่มหลายวัน"
+const btnAddMulti = document.getElementById("btn-add-multi");
+const multiModalEl = document.getElementById("multi-modal");
+const multiModal = new bootstrap.Modal(multiModalEl);
+const multiForm = document.getElementById("multi-form");
+const mAmount = document.getElementById("multi-amount");
+const mMonth = document.getElementById("multi-month");
+const mCategory = document.getElementById("multi-category");
+const mPayment = document.getElementById("multi-payment");
+const mNote = document.getElementById("multi-note");
+const mDays = document.getElementById("multi-days");
+const mCount = document.getElementById("multi-count");
+
 const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย" };
 
 let categories = [];
@@ -175,8 +188,98 @@ function exportCsv() {
   downloadFile(`transactions-${fMonth.value || "all"}.csv`, bom + csv, "text/csv;charset=utf-8");
 }
 
+// --- เพิ่มหลายวันพร้อมกัน ---
+const multiSelectedType = () => document.querySelector("input[name=multi-type]:checked").value;
+
+function fillMultiCategories(type) {
+  mCategory.innerHTML =
+    '<option value="">— ไม่ระบุ —</option>' +
+    categories
+      .filter((c) => c.type === type)
+      .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+      .join("");
+}
+
+// วาดปุ่มวันที่ 1..31 ของเดือนที่เลือก — วันเกินจำนวนวันจริงของเดือนจะถูกปิด
+function renderDays() {
+  const ym = mMonth.value || todayBangkok().slice(0, 7);
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  mDays.innerHTML = Array.from({ length: 31 }, (_, i) => {
+    const d = i + 1;
+    const disabled = d > lastDay ? "disabled" : "";
+    return `<button type="button" class="btn btn-sm btn-outline-secondary multi-day" data-day="${d}" ${disabled}>${d}</button>`;
+  }).join("");
+  updateMultiCount();
+}
+
+function selectedDays() {
+  return [...mDays.querySelectorAll(".multi-day.active")].map((b) => Number(b.dataset.day));
+}
+
+function updateMultiCount() {
+  const n = selectedDays().length;
+  mCount.textContent = n ? `เลือกแล้ว ${n} วัน` : "ยังไม่เลือกวัน";
+}
+
+function openMultiAdd() {
+  multiForm.reset();
+  document.getElementById("multi-type-expense").checked = true;
+  mMonth.value = fMonth.value || todayBangkok().slice(0, 7);
+  fillMultiCategories("expense");
+  renderDays();
+  multiModal.show();
+}
+
+mDays.addEventListener("click", (e) => {
+  const btn = e.target.closest(".multi-day");
+  if (!btn || btn.disabled) return;
+  btn.classList.toggle("active");
+  updateMultiCount();
+});
+
+document.getElementById("multi-all").addEventListener("click", () => {
+  mDays.querySelectorAll(".multi-day:not([disabled])").forEach((b) => b.classList.add("active"));
+  updateMultiCount();
+});
+document.getElementById("multi-none").addEventListener("click", () => {
+  mDays.querySelectorAll(".multi-day").forEach((b) => b.classList.remove("active"));
+  updateMultiCount();
+});
+
+document.querySelectorAll("input[name=multi-type]").forEach((radio) =>
+  radio.addEventListener("change", () => fillMultiCategories(multiSelectedType()))
+);
+mMonth.addEventListener("change", renderDays);
+
+multiForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const days = selectedDays();
+  if (!days.length) return toast("error", "ยังไม่ได้เลือกวัน");
+  const ym = mMonth.value;
+  const base = {
+    type: multiSelectedType(),
+    amount: Number(mAmount.value),
+    category_id: mCategory.value || null,
+    payment_method: mPayment.value || null,
+    note: mNote.value.trim() || null,
+  };
+  const payload = days.map((d) => ({ ...base, txn_date: `${ym}-${String(d).padStart(2, "0")}` }));
+  const btn = multiForm.querySelector("button[type=submit]");
+
+  btn.disabled = true;
+  const { error } = await supabase.from("transactions").insert(payload);
+  btn.disabled = false;
+
+  if (error) return toast("error", "บันทึกไม่สำเร็จ: " + error.message);
+  multiModal.hide();
+  toast("success", `เพิ่ม ${days.length} รายการแล้ว`);
+  loadTransactions();
+});
+
 // --- events ---
 btnAdd.addEventListener("click", openAdd);
+btnAddMulti.addEventListener("click", openMultiAdd);
 btnExport.addEventListener("click", exportCsv);
 
 document.querySelectorAll("input[name=txn-type]").forEach((radio) =>

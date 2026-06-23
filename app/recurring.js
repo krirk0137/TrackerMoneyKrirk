@@ -60,10 +60,13 @@ async function loadList() {
       const badge = income ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger";
       return `<li class="list-group-item d-flex justify-content-between align-items-center ${t.active ? "" : "opacity-50"}">
         <div>
-          <span class="badge ${badge}">${TH_TYPE[t.type]}</span>
-          <span class="ms-1">${t.category?.name ? escapeHtml(t.category.name) : "ไม่ระบุ"}</span>
-          <span class="fw-semibold ms-1 ${income ? "text-success" : "text-danger"}">${formatTHB(t.amount)}</span>
-          <span class="text-muted small ms-1">ทุกวันที่ ${t.day_of_month}${t.active ? "" : " · ปิดอยู่"}</span>
+          <div>
+            <span class="badge ${badge}">${TH_TYPE[t.type]}</span>
+            <span class="ms-1">${t.category?.name ? escapeHtml(t.category.name) : "ไม่ระบุ"}</span>
+            <span class="fw-semibold ms-1 ${income ? "text-success" : "text-danger"}">${formatTHB(t.amount)}</span>
+            <span class="text-muted small ms-1">ทุกวันที่ ${t.day_of_month}${t.active ? "" : " · ปิดอยู่"}</span>
+          </div>
+          ${t.note ? `<div class="text-muted small mt-1">📝 ${escapeHtml(t.note)}</div>` : ""}
         </div>
         <span class="text-nowrap">
           <button class="btn btn-sm btn-outline-secondary" data-edit="${t.id}">แก้</button>

@@ -1,3 +1,60 @@
 body {
   min-height: 100vh;
 }
+
+/* ===== ปฏิทินรายรับ–รายจ่าย ===== */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.cal-head {
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+  padding: 4px 0;
+}
+.cal-cell {
+  min-height: 64px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 6px;
+  padding: 3px 4px;
+  font-size: 0.75rem;
+  background: var(--bs-body-bg);
+}
+.cal-empty {
+  border: none;
+  background: transparent;
+}
+.cal-day {
+  font-weight: 600;
+  color: var(--bs-secondary-color);
+}
+.cal-has {
+  cursor: pointer;
+}
+.cal-has:hover {
+  background: var(--bs-tertiary-bg);
+}
+.cal-today {
+  border-color: var(--bs-primary);
+  box-shadow: inset 0 0 0 1px var(--bs-primary);
+}
+.cal-amt {
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ===== ตัวเลือกวันแบบหลายวัน (modal เพิ่มหลายวัน) ===== */
+.multi-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.multi-days .multi-day {
+  padding: 4px 0;
+}

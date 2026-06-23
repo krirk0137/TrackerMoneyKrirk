@@ -42,7 +42,7 @@ async function loadCardsAndPie(ym) {
   const { start, end } = monthRange(ym);
   const { data, error } = await supabase
     .from("transactions")
-    .select("type, amount, category:categories(name)")
+    .select("type, amount, note, category:categories(name)")
     .gte("txn_date", start)
     .lte("txn_date", end);
   if (error) return toast("error", "โหลดสรุปไม่สำเร็จ: " + error.message);
@@ -61,9 +61,11 @@ async function loadCardsAndPie(ym) {
 
 function renderPie(expenseRows) {
   const byCat = {};
+  const notesByCat = {}; // หมวด → [โน้ต] เอาไว้โชว์ใน tooltip
   for (const r of expenseRows) {
     const name = r.category?.name ?? "ไม่ระบุ";
     byCat[name] = (byCat[name] ?? 0) + Number(r.amount);
+    if (r.note) (notesByCat[name] ??= []).push(r.note);
   }
   const labels = Object.keys(byCat);
   const values = Object.values(byCat);
@@ -76,7 +78,24 @@ function renderPie(expenseRows) {
   pieChart = new Chart(pieCanvas, {
     type: "doughnut",
     data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => PALETTE[i % PALETTE.length]) }] },
-    options: { maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: {
+          callbacks: {
+            // ต่อท้าย tooltip ด้วยรายการโน้ตของหมวดนั้น (สูงสุด 5 บรรทัด)
+            afterBody: (items) => {
+              const notes = notesByCat[items[0].label] ?? [];
+              if (!notes.length) return [];
+              const lines = notes.slice(0, 5).map((n) => "• " + n);
+              if (notes.length > 5) lines.push(`… อีก ${notes.length - 5} รายการ`);
+              return ["", ...lines];
+            },
+          },
+        },
+      },
+    },
   });
 }
 
@@ -119,7 +138,7 @@ async function loadBar(ym) {
 async function loadRecent() {
   const { data, error } = await supabase
     .from("transactions")
-    .select("type, amount, txn_date, note, category:categories(name)")
+    .select("type, amount, txn_date, note, payment_method, category:categories(name)")
     .order("txn_date", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(8);
@@ -131,18 +150,33 @@ async function loadRecent() {
     return;
   }
   elRecent.innerHTML = rows
-    .map((r) => {
+    .map((r, i) => {
       const income = r.type === "income";
       const cls = income ? "text-success" : "text-danger";
       const label = r.category?.name ?? r.note ?? TH_TYPE[r.type];
-      return `<tr>
+      const detail = [
+        r.note ? `📝 ${escapeHtml(r.note)}` : "ไม่มีโน้ต",
+        r.payment_method ? `· ${escapeHtml(r.payment_method)}` : "",
+      ].join(" ");
+      return `<tr role="button" data-recent="${i}">
         <td class="text-nowrap text-muted small">${r.txn_date}</td>
-        <td>${escapeHtml(label)}</td>
+        <td>${escapeHtml(label)} <span class="text-muted small">${r.note ? "📝" : ""}</span></td>
         <td class="text-end fw-semibold ${cls} text-nowrap">${income ? "+" : "−"}${formatTHB(r.amount)}</td>
+      </tr>
+      <tr class="d-none" data-recent-detail="${i}">
+        <td colspan="3" class="small text-muted bg-body-secondary">${detail}</td>
       </tr>`;
     })
     .join("");
 }
+
+// คลิกแถวรายการล่าสุด → กาง/พับ แถวรายละเอียด (โน้ต + วิธีจ่าย)
+elRecent.addEventListener("click", (e) => {
+  const tr = e.target.closest("[data-recent]");
+  if (!tr) return;
+  const detail = elRecent.querySelector(`[data-recent-detail="${tr.dataset.recent}"]`);
+  detail?.classList.toggle("d-none");
+});
 
 // งบประมาณเดือนนี้: หมวดรายจ่ายที่ตั้งงบ → ใช้ไปเท่าไหร่ vs งบ (progress bar)
 async function loadBudget(ym) {
@@ -167,23 +201,34 @@ async function loadBudget(ym) {
   for (const t of tx ?? []) spent[t.category_id] = (spent[t.category_id] ?? 0) + Number(t.amount);
 
   elBudgetSection.classList.remove("d-none");
-  elBudgetList.innerHTML = cats
-    .map((c) => {
-      const used = spent[c.id] || 0;
-      const budget = Number(c.monthly_budget);
-      const ratio = budget > 0 ? used / budget : 0;
-      const color = ratio > 1 ? "bg-danger" : ratio >= 0.8 ? "bg-warning" : "bg-success";
-      return `<div class="mb-2">
+
+  // นับหมวดที่ถึงเกณฑ์เตือน เพื่อสรุปเป็นแบนเนอร์ด้านบน
+  let nOver = 0, nNear = 0;
+  const rows = cats.map((c) => {
+    const used = spent[c.id] || 0;
+    const budget = Number(c.monthly_budget);
+    const ratio = budget > 0 ? used / budget : 0;
+    let color, icon;
+    if (ratio >= 1) { color = "bg-danger"; icon = "🔴"; nOver++; }
+    else if (ratio >= 0.8) { color = "bg-warning"; icon = "⚠️"; nNear++; }
+    else if (ratio >= 0.5) { color = "bg-info"; icon = "🟡"; }
+    else { color = "bg-success"; icon = "🟢"; }
+    const pct = Math.round(ratio * 100);
+    return `<div class="mb-2">
         <div class="d-flex justify-content-between small">
-          <span>${escapeHtml(c.name)}</span>
+          <span>${icon} ${escapeHtml(c.name)} <span class="text-muted">${pct}%</span></span>
           <span class="${used > budget ? "text-danger fw-semibold" : ""}">${formatTHB(used)} / ${formatTHB(budget)}</span>
         </div>
         <div class="progress" style="height: 8px;">
           <div class="progress-bar ${color}" style="width: ${Math.min(100, ratio * 100)}%"></div>
         </div>
       </div>`;
-    })
-    .join("");
+  });
+
+  const alerts = [];
+  if (nOver) alerts.push(`<div class="alert alert-danger py-2 px-3 small mb-2">🔴 มี ${nOver} หมวดใช้งบเกิน 100% แล้ว</div>`);
+  if (nNear) alerts.push(`<div class="alert alert-warning py-2 px-3 small mb-2">⚠️ มี ${nNear} หมวดใกล้เต็มงบ (80%+)</div>`);
+  elBudgetList.innerHTML = alerts.join("") + rows.join("");
 }
 
 async function load() {
@@ -197,6 +242,11 @@ elMonth.addEventListener("change", load);
 // โหลด/รีเฟรชทุกครั้งที่เปิดแท็บ Dashboard (lazy + ข้อมูลสดเสมอ)
 document.addEventListener("view:change", (e) => {
   if (e.detail.view === "dashboard") load();
+});
+
+// สลับธีม → วาดกราฟใหม่ด้วยสีตัวอักษรของธีมใหม่ (เฉพาะตอนแท็บ Dashboard เปิดอยู่)
+document.addEventListener("theme:change", () => {
+  if (!document.getElementById("view-dashboard").classList.contains("d-none")) load();
 });
 
 document.addEventListener("auth:login", () => {

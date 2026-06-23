@@ -9,8 +9,12 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#0d6efd" />
   <link rel="apple-touch-icon" href="icon.svg" />
+  <!-- ตั้งธีมก่อน paint กัน flash (ดู app/theme.js) -->
+  <script>
+    document.documentElement.setAttribute("data-bs-theme", localStorage.getItem("theme") || "light");
+  </script>
 </head>
-<body class="bg-light">
+<body class="bg-body-tertiary">
 
   <!-- หน้า Login -->
   <div id="login-view" class="d-none">
@@ -36,20 +40,23 @@
 
   <!-- แอปหลัก (หลัง login) -->
   <div id="app-view" class="d-none">
-    <nav class="navbar navbar-expand bg-white border-bottom shadow-sm">
+    <nav class="navbar navbar-expand bg-body border-bottom shadow-sm">
       <div class="container">
         <span class="navbar-brand mb-0 h1 fs-5">💰 บันทึกรายรับ–รายจ่าย</span>
-        <div class="d-flex align-items-center gap-3">
-          <span class="text-muted small" id="user-email"></span>
+        <div class="d-flex align-items-center gap-2 gap-md-3">
+          <span class="text-muted small d-none d-sm-inline" id="user-email"></span>
+          <button id="theme-toggle" class="btn btn-outline-secondary btn-sm" title="สลับธีมสว่าง/มืด">🌙</button>
           <button id="logout-btn" class="btn btn-outline-secondary btn-sm">ออกจากระบบ</button>
         </div>
       </div>
     </nav>
 
     <div class="container py-3">
-      <ul class="nav nav-pills mb-3" id="main-tabs">
+      <ul class="nav nav-pills mb-3 flex-wrap" id="main-tabs">
         <li class="nav-item"><button class="nav-link active" data-view="transactions">รายการ</button></li>
         <li class="nav-item"><button class="nav-link" data-view="dashboard">Dashboard</button></li>
+        <li class="nav-item"><button class="nav-link" data-view="calendar">ปฏิทิน</button></li>
+        <li class="nav-item"><button class="nav-link" data-view="savings">ออมเงิน</button></li>
         <li class="nav-item"><button class="nav-link" data-view="categories">หมวดหมู่</button></li>
         <li class="nav-item"><button class="nav-link" data-view="recurring">ประจำ</button></li>
       </ul>
@@ -60,6 +67,7 @@
           <h2 class="h5 mb-0">รายการรายรับ–รายจ่าย</h2>
           <div class="d-flex gap-2">
             <button id="btn-export" class="btn btn-outline-success btn-sm">⬇ CSV</button>
+            <button id="btn-add-multi" class="btn btn-outline-primary btn-sm">+ หลายวัน</button>
             <button id="btn-add-txn" class="btn btn-primary btn-sm">+ เพิ่มรายการ</button>
           </div>
         </div>
@@ -179,6 +187,32 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ===== Calendar ===== -->
+      <section id="view-calendar" class="app-view-section d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h2 class="h5 mb-0">ปฏิทินรายรับ–รายจ่าย</h2>
+          <input type="month" id="cal-month" class="form-control form-control-sm" style="max-width: 180px;" />
+        </div>
+        <div class="card mb-3"><div class="card-body p-2 p-md-3">
+          <div id="cal-grid" class="cal-grid"></div>
+        </div></div>
+        <div class="card d-none" id="cal-day-card"><div class="card-body">
+          <h3 class="h6 mb-2" id="cal-day-title">รายการของวันนี้</h3>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0"><tbody id="cal-day-list"></tbody></table>
+          </div>
+        </div></div>
+      </section>
+
+      <!-- ===== Savings goals ===== -->
+      <section id="view-savings" class="app-view-section d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h2 class="h5 mb-0">เป้าหมายออมเงิน</h2>
+          <button id="btn-add-goal" class="btn btn-primary btn-sm">+ เพิ่มเป้าหมาย</button>
+        </div>
+        <div class="row g-3" id="goal-list"></div>
       </section>
 
       <!-- ===== Categories ===== -->
@@ -381,13 +415,121 @@
     </div>
   </div>
 
+  <!-- Modal: เพิ่มรายการหลายวันพร้อมกัน -->
+  <div class="modal fade" id="multi-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="multi-form">
+          <div class="modal-header">
+            <h5 class="modal-title">เพิ่มหลายวันพร้อมกัน</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">ประเภท</label>
+              <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="multi-type" id="multi-type-expense" value="expense" checked />
+                <label class="btn btn-outline-danger" for="multi-type-expense">รายจ่าย</label>
+                <input type="radio" class="btn-check" name="multi-type" id="multi-type-income" value="income" />
+                <label class="btn btn-outline-success" for="multi-type-income">รายรับ</label>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-6 mb-3">
+                <label class="form-label">จำนวนเงิน (บาท)</label>
+                <input type="number" id="multi-amount" class="form-control" step="0.01" min="0.01" required />
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">เดือน</label>
+                <input type="month" id="multi-month" class="form-control" required />
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">หมวดหมู่</label>
+              <select id="multi-category" class="form-select"><option value="">— ไม่ระบุ —</option></select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">วิธีจ่าย</label>
+              <select id="multi-payment" class="form-select">
+                <option value="">— ไม่ระบุ —</option>
+                <option>เงินสด</option>
+                <option>โอน</option>
+                <option>บัตรเครดิต</option>
+                <option>อื่นๆ</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">โน้ต</label>
+              <input type="text" id="multi-note" class="form-control" maxlength="200" />
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="form-label mb-0">เลือกวันที่</label>
+              <span class="text-nowrap">
+                <button type="button" id="multi-all" class="btn btn-sm btn-outline-secondary">ทั้งหมด</button>
+                <button type="button" id="multi-none" class="btn btn-sm btn-outline-secondary">ล้าง</button>
+              </span>
+            </div>
+            <div id="multi-days" class="multi-days"></div>
+            <div class="form-text mt-2" id="multi-count">ยังไม่เลือกวัน</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">บันทึกทุกวันที่เลือก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: เพิ่ม / แก้ไขเป้าหมายออมเงิน -->
+  <div class="modal fade" id="goal-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="goal-form">
+          <div class="modal-header">
+            <h5 class="modal-title" id="goal-modal-title">เพิ่มเป้าหมาย</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="goal-id" />
+            <div class="mb-3">
+              <label class="form-label">ชื่อเป้าหมาย</label>
+              <input type="text" id="goal-name" class="form-control" maxlength="80" placeholder="เช่น ทริปญี่ปุ่น" required />
+            </div>
+            <div class="row g-2">
+              <div class="col-6 mb-3">
+                <label class="form-label">เป้าหมาย (บาท)</label>
+                <input type="number" id="goal-target" class="form-control" step="0.01" min="0.01" required />
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">ออมแล้ว (บาท)</label>
+                <input type="number" id="goal-current" class="form-control" step="0.01" min="0" value="0" />
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">วันที่ตั้งเป้า <span class="text-muted small">— ไม่ใส่ก็ได้</span></label>
+              <input type="date" id="goal-date" class="form-control" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">บันทึก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script type="module" src="app/theme.js"></script>
   <script type="module" src="app/auth.js"></script>
   <script type="module" src="app/nav.js"></script>
   <script type="module" src="app/transactions.js"></script>
   <script type="module" src="app/dashboard.js"></script>
+  <script type="module" src="app/calendar.js"></script>
+  <script type="module" src="app/savings.js"></script>
   <script type="module" src="app/categories.js"></script>
   <script type="module" src="app/recurring.js"></script>
   <script>
