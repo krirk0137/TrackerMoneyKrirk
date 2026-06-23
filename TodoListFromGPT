@@ -1,0 +1,465 @@
+# Personal Finance App Specification
+
+## Overview
+
+แอปบันทึกรายรับรายจ่ายสำหรับใช้งานระยะยาว เน้นใช้งานง่าย วิเคราะห์ข้อมูลได้ และสามารถขยายไปสู่ AI, OCR และ Cloud Sync ได้ในอนาคต
+
+---
+
+# Main Features
+
+## Dashboard
+
+แสดงภาพรวมการเงิน
+
+* สินทรัพย์รวม
+* รายรับเดือนนี้
+* รายจ่ายเดือนนี้
+* เงินคงเหลือ
+* งบประมาณที่ใช้ไป
+* รายการล่าสุด
+* เป้าหมายการออม
+* Subscription ที่ใกล้ครบกำหนด
+
+---
+
+## Transactions
+
+จัดการรายการรายรับรายจ่าย
+
+### เพิ่มรายการ
+
+ข้อมูลที่ต้องมี
+
+* Amount
+* Transaction Type (Income / Expense / Transfer)
+* Category
+* Account
+* DateTime
+* Note
+* Tags
+* Receipt Image
+
+### รองรับ
+
+* Edit
+* Delete
+* Undo
+* Search
+* Filter
+
+---
+
+## Accounts
+
+รองรับหลายบัญชี
+
+### Types
+
+* Cash
+* Bank Account
+* Credit Card
+* E-Wallet
+* Investment
+
+### Features
+
+* Add Account
+* Edit Account
+* Delete Account
+* Transfer Between Accounts
+
+---
+
+## Categories
+
+Income
+
+* Salary
+* Bonus
+* Freelance
+
+Expense
+
+* Food
+* Transport
+* Shopping
+* Home
+* Health
+* Entertainment
+
+สามารถสร้างเองได้
+
+---
+
+## Budget
+
+กำหนดงบประมาณรายเดือน
+
+ตัวอย่าง
+
+Food : 5000 THB
+
+Notification
+
+* 50%
+* 80%
+* 100%
+
+---
+
+## Goals
+
+เป้าหมายการออม
+
+เช่น
+
+* Emergency Fund
+* Motorcycle
+* House
+* Travel
+
+ข้อมูล
+
+* Target Amount
+* Current Amount
+* Deadline
+
+Progress %
+
+---
+
+## Recurring Transactions
+
+รายการประจำ
+
+ตัวอย่าง
+
+* Salary
+* Internet
+* Netflix
+
+Frequency
+
+* Daily
+* Weekly
+* Monthly
+* Yearly
+
+---
+
+## Subscription Tracking
+
+ติดตามค่าบริการรายเดือน
+
+* Netflix
+* Spotify
+* YouTube Premium
+
+แจ้งเตือนก่อนตัดเงิน
+
+---
+
+## Analytics
+
+### Pie Chart
+
+สัดส่วนรายจ่าย
+
+### Trend
+
+* Daily
+* Weekly
+* Monthly
+* Yearly
+
+### Top Spending
+
+10 หมวดที่ใช้มากที่สุด
+
+### Average Spending
+
+ค่าเฉลี่ยต่อวัน
+
+---
+
+## Calendar
+
+แสดงรายการตามวัน
+
+สี
+
+* Green = Income
+* Red = Expense
+
+---
+
+## Search
+
+ค้นหาขั้นสูง
+
+* Category
+* Account
+* Amount
+* Date Range
+* Tag
+
+---
+
+## Tags
+
+ตัวอย่าง
+
+#food
+#travel
+#work
+
+รองรับหลาย Tag ต่อรายการ
+
+---
+
+## Reports
+
+Export
+
+* CSV
+* Excel
+* PDF
+
+ช่วงเวลา
+
+* Daily
+* Monthly
+* Yearly
+
+---
+
+## Notifications
+
+* Budget Alert
+* Subscription Reminder
+* No Transaction Today
+
+---
+
+## Backup
+
+Local
+
+* SQLite
+
+Cloud
+
+* OneDrive
+* Google Drive
+
+Restore Backup
+
+---
+
+## Security
+
+* PIN
+* Fingerprint
+* Face ID
+* Auto Lock
+
+---
+
+# Future Features
+
+## OCR Receipt
+
+สแกนใบเสร็จ
+
+ดึงข้อมูล
+
+* Store Name
+* Date
+* Amount
+
+สร้างรายการอัตโนมัติ
+
+---
+
+## AI Insights
+
+วิเคราะห์ข้อมูล
+
+ตัวอย่าง
+
+* ค่าอาหารเพิ่มขึ้น 15%
+* ใช้เงินวันศุกร์มากที่สุด
+* หมวดที่ใช้เงินสูงสุด
+
+ถามได้
+
+* เดือนนี้ใช้เงินกับอาหารเท่าไร
+* ค่าใช้จ่ายเพิ่มขึ้นจากเดือนก่อนหรือไม่
+
+---
+
+# Database Tables
+
+## Accounts
+
+* Id
+* Name
+* Type
+* Balance
+* Color
+* Icon
+
+## Categories
+
+* Id
+* Name
+* Type
+* Color
+* Icon
+
+## Transactions
+
+* Id
+* Amount
+* TransactionType
+* CategoryId
+* AccountId
+* Date
+* Note
+* ImagePath
+
+## Tags
+
+* Id
+* Name
+
+## TransactionTags
+
+* TransactionId
+* TagId
+
+## Budgets
+
+* Id
+* CategoryId
+* LimitAmount
+* Month
+* Year
+
+## Goals
+
+* Id
+* Name
+* TargetAmount
+* CurrentAmount
+* Deadline
+
+## RecurringTransactions
+
+* Id
+* Amount
+* Frequency
+* NextRunDate
+
+## Subscriptions
+
+* Id
+* Name
+* Amount
+* RenewDate
+
+---
+
+# Architecture
+
+Presentation
+
+.NET MAUI
+
+↓
+
+Application
+
+Use Cases
+
+↓
+
+Domain
+
+Entities
+
+↓
+
+Infrastructure
+
+SQLite
+Backup
+Cloud Sync
+OCR
+AI Service
+
+---
+
+# Bottom Navigation
+
+Home
+
+Transactions
+
+Add
+
+Analytics
+
+Settings
+
+---
+
+# Priority
+
+Phase 1
+
+* Dashboard
+* Transactions
+* Accounts
+* Categories
+* Budget
+
+Phase 2
+
+* Goals
+* Analytics
+* Calendar
+* Search
+* Export
+
+Phase 3
+
+* Backup
+* Notification
+* Subscription
+* Recurring Transactions
+
+Phase 4
+
+* OCR Receipt
+* AI Insights
+* Cloud Sync
+
+---
+
+Target Platform
+
+* Android
+* iOS
+* Windows
+
+Tech Stack
+
+* .NET MAUI
+* SQLite
+* CommunityToolkit.MVVM
+* LiveCharts
+* SkiaSharp
+* QuestPDF
+* Azure API (Optional)
