@@ -86,13 +86,21 @@
                   <option value="all">ทั้งหมด</option>
                   <option value="income">รายรับ</option>
                   <option value="expense">รายจ่าย</option>
+                  <option value="transfer">โอน</option>
                 </select>
               </div>
-              <div class="col-6 col-md-3">
+              <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">หมวดหมู่</label>
                 <select id="f-category" class="form-select form-select-sm"><option value="">ทั้งหมด</option></select>
               </div>
-              <div class="col-6 col-md-3">
+              <div class="col-6 col-md-2">
+                <label class="form-label small mb-1 d-flex justify-content-between">
+                  <span>แท็ก</span>
+                  <button type="button" id="f-tag-manage" class="btn btn-link btn-sm p-0 lh-1" title="จัดการแท็ก">จัดการ</button>
+                </label>
+                <select id="f-tag" class="form-select form-select-sm"><option value="">ทั้งหมด</option></select>
+              </div>
+              <div class="col-6 col-md-2">
                 <label class="form-label small mb-1">ค้นหาโน้ต</label>
                 <input type="text" id="f-search" class="form-control form-control-sm" placeholder="พิมพ์คำค้น..." />
               </div>
@@ -333,6 +341,15 @@
               <label class="form-label">โน้ต</label>
               <input type="text" id="txn-note" class="form-control" maxlength="200" />
             </div>
+
+            <div class="mb-3">
+              <label class="form-label">แท็ก <span class="text-muted small">— คลิกเลือก/ยกเลิก</span></label>
+              <div id="txn-tags" class="d-flex flex-wrap gap-1 mb-2"></div>
+              <div class="input-group input-group-sm">
+                <input type="text" id="txn-tag-new" class="form-control" placeholder="แท็กใหม่ แล้วกด Enter" maxlength="30" />
+                <button type="button" class="btn btn-outline-secondary" id="txn-tag-add">+ เพิ่ม</button>
+              </div>
+            </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
@@ -366,6 +383,10 @@
             <div class="mb-3">
               <label class="form-label">ชื่อหมวดหมู่</label>
               <input type="text" id="cat-name" class="form-control" maxlength="50" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">หมวดแม่ <span class="text-muted small">— ไม่เลือก = เป็นหมวดหลัก</span></label>
+              <select id="cat-parent" class="form-select"><option value="">— ไม่มี (หมวดหลัก) —</option></select>
             </div>
             <div class="mb-3">
               <label class="form-label">งบต่อเดือน (บาท) <span class="text-muted small">— ไม่ใส่ก็ได้ เหมาะกับหมวดรายจ่าย</span></label>
@@ -591,6 +612,25 @@
             <button type="submit" class="btn btn-primary">บันทึก</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: จัดการแท็ก (เปลี่ยนชื่อ / ลบ) -->
+  <div class="modal fade" id="tag-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">จัดการแท็ก</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">ลบแท็กจะเอาออกจากทุกรายการที่ติดไว้ (ตัวรายการไม่ถูกลบ)</p>
+          <ul class="list-group list-group-flush" id="tag-manage-list"></ul>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-light" data-bs-dismiss="modal">ปิด</button>
+        </div>
       </div>
     </div>
   </div>

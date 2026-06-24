@@ -43,10 +43,21 @@ const mDays = document.getElementById("multi-days");
 const mCount = document.getElementById("multi-count");
 const mAccount = document.getElementById("multi-account");
 
+// แท็ก
+const txnTags = document.getElementById("txn-tags");
+const txnTagNew = document.getElementById("txn-tag-new");
+const txnTagAdd = document.getElementById("txn-tag-add");
+const fTag = document.getElementById("f-tag");
+const tagModal = new bootstrap.Modal(document.getElementById("tag-modal"));
+const tagManageList = document.getElementById("tag-manage-list");
+const fTagManage = document.getElementById("f-tag-manage");
+
 const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย", transfer: "โอน" };
 
 let categories = [];
 let accounts = [];
+let tags = [];
+let selectedTagIds = new Set(); // แท็กที่เลือกในฟอร์มรายการปัจจุบัน
 let currentRows = [];
 
 // --- helpers ---
@@ -57,20 +68,34 @@ const escapeHtml = (s) =>
 
 // --- data ---
 async function loadCategories() {
-  const { data, error } = await supabase.from("categories").select("id, name, type").order("sort_order");
+  const { data, error } = await supabase.from("categories").select("id, name, type, parent_id").order("sort_order");
   if (error) return toast("error", "โหลดหมวดหมู่ไม่สำเร็จ: " + error.message);
   categories = data ?? [];
   fCategory.innerHTML =
     '<option value="">ทั้งหมด</option>' +
-    categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)} (${TH_TYPE[c.type]})</option>`).join("");
+    categories
+      .map((c) => `<option value="${c.id}">${c.parent_id ? "↳ " : ""}${escapeHtml(c.name)} (${TH_TYPE[c.type]})</option>`)
+      .join("");
+}
+
+// เรียงหมวดของ type แบบลำดับชั้น: หมวดหลักตามด้วยหมวดย่อยของมัน
+function orderedCategories(type) {
+  const list = categories.filter((c) => c.type === type);
+  const tops = list.filter((c) => !c.parent_id);
+  const out = [];
+  for (const t of tops) {
+    out.push({ c: t, child: false });
+    for (const ch of list.filter((x) => x.parent_id === t.id)) out.push({ c: ch, child: true });
+  }
+  for (const c of list) if (c.parent_id && !tops.some((t) => t.id === c.parent_id)) out.push({ c, child: true });
+  return out;
 }
 
 function fillModalCategories(type, selectedId = "") {
   fldCategory.innerHTML =
     '<option value="">— ไม่ระบุ —</option>' +
-    categories
-      .filter((c) => c.type === type)
-      .map((c) => `<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+    orderedCategories(type)
+      .map(({ c, child }) => `<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${child ? "↳ " : ""}${escapeHtml(c.name)}</option>`)
       .join("");
 }
 
@@ -100,14 +125,89 @@ function applyTypeUI(type) {
   if (!transfer) fillModalCategories(type, fldCategory.value);
 }
 
+// --- แท็ก ---
+async function loadTags() {
+  const { data, error } = await supabase.from("tags").select("id, name").order("name");
+  if (error) return toast("error", "โหลดแท็กไม่สำเร็จ: " + error.message);
+  tags = data ?? [];
+  fTag.innerHTML = '<option value="">ทั้งหมด</option>' + tags.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  renderTagChips();
+}
+
+function renderTagChips() {
+  if (!tags.length) {
+    txnTags.innerHTML = '<span class="text-muted small">ยังไม่มีแท็ก — พิมพ์ด้านล่างเพื่อสร้าง</span>';
+    return;
+  }
+  txnTags.innerHTML = tags
+    .map((t) => {
+      const on = selectedTagIds.has(t.id);
+      return `<button type="button" class="btn btn-sm ${on ? "btn-primary" : "btn-outline-secondary"}" data-tag="${t.id}">${escapeHtml(t.name)}</button>`;
+    })
+    .join("");
+}
+
+async function addNewTag() {
+  const name = txnTagNew.value.trim();
+  if (!name) return;
+  const existing = tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  if (existing) {
+    selectedTagIds.add(existing.id);
+    txnTagNew.value = "";
+    return renderTagChips();
+  }
+  const { data, error } = await supabase.from("tags").insert({ name }).select("id, name").single();
+  if (error) return toast("error", "เพิ่มแท็กไม่สำเร็จ: " + error.message);
+  txnTagNew.value = "";
+  await loadTags();
+  selectedTagIds.add(data.id);
+  renderTagChips();
+}
+
+// ซิงก์แท็กของรายการ: ลบของเดิมทั้งหมดแล้วใส่ที่เลือก (N น้อย ทำตรง ๆ ถูกต้องสุด)
+async function syncTransactionTags(txnId) {
+  await supabase.from("transaction_tags").delete().eq("transaction_id", txnId);
+  const ids = [...selectedTagIds];
+  if (!ids.length) return;
+  const { error } = await supabase.from("transaction_tags").insert(ids.map((tag_id) => ({ transaction_id: txnId, tag_id })));
+  if (error) toast("error", "บันทึกแท็กไม่สำเร็จ: " + error.message);
+}
+
+function renderTagManage() {
+  if (!tags.length) {
+    tagManageList.innerHTML = '<li class="list-group-item text-muted">ยังไม่มีแท็ก</li>';
+    return;
+  }
+  tagManageList.innerHTML = tags
+    .map(
+      (t) => `<li class="list-group-item d-flex justify-content-between align-items-center">
+        <span>${escapeHtml(t.name)}</span>
+        <span class="text-nowrap">
+          <button class="btn btn-sm btn-outline-secondary" data-tag-rename="${t.id}">เปลี่ยนชื่อ</button>
+          <button class="btn btn-sm btn-outline-danger" data-tag-del="${t.id}">ลบ</button>
+        </span>
+      </li>`
+    )
+    .join("");
+}
+
 async function loadTransactions() {
+  // กรองตามแท็ก: หา transaction_id ที่ติดแท็กนั้นก่อน
+  let tagFilterIds = null;
+  if (fTag.value) {
+    const { data: tt } = await supabase.from("transaction_tags").select("transaction_id").eq("tag_id", fTag.value);
+    tagFilterIds = (tt ?? []).map((x) => x.transaction_id);
+    if (!tagFilterIds.length) tagFilterIds = ["00000000-0000-0000-0000-000000000000"]; // ไม่มี → คืนว่าง
+  }
+
   let q = supabase
     .from("transactions")
     .select(
       "id, type, amount, txn_date, note, payment_method, category_id, account_id, to_account_id, " +
         "category:categories(name), " +
         "account:accounts!transactions_account_id_fkey(name), " +
-        "to_account:accounts!transactions_to_account_id_fkey(name)"
+        "to_account:accounts!transactions_to_account_id_fkey(name), " +
+        "transaction_tags(tag_id, tag:tags(name))"
     )
     .order("txn_date", { ascending: false })
     .order("created_at", { ascending: false });
@@ -119,6 +219,7 @@ async function loadTransactions() {
   if (fType.value !== "all") q = q.eq("type", fType.value);
   if (fCategory.value) q = q.eq("category_id", fCategory.value);
   if (fSearch.value.trim()) q = q.ilike("note", `%${fSearch.value.trim()}%`);
+  if (tagFilterIds) q = q.in("id", tagFilterIds);
 
   const { data, error } = await q;
   if (error) return toast("error", "โหลดรายการไม่สำเร็จ: " + error.message);
@@ -150,6 +251,9 @@ function renderTable(rows) {
         : r.account?.name
         ? escapeHtml(r.account.name)
         : dash;
+      const tagBadges = (r.transaction_tags ?? [])
+        .map((tt) => `<span class="badge bg-secondary-subtle text-secondary ms-1">${escapeHtml(tt.tag?.name ?? "")}</span>`)
+        .join("");
       return `<tr>
         <td class="text-nowrap">${r.txn_date}</td>
         <td><span class="badge ${badge}">${TH_TYPE[r.type]}</span></td>
@@ -157,7 +261,7 @@ function renderTable(rows) {
         <td class="text-nowrap small">${acct}</td>
         <td class="text-end fw-semibold ${amtCls} text-nowrap">${amtSign}${formatTHB(r.amount)}</td>
         <td>${r.payment_method ? escapeHtml(r.payment_method) : dash}</td>
-        <td>${r.note ? escapeHtml(r.note) : dash}</td>
+        <td>${r.note ? escapeHtml(r.note) : dash}${tagBadges}</td>
         <td class="text-end text-nowrap">
           <button class="btn btn-sm btn-outline-secondary" data-edit="${r.id}">แก้</button>
           <button class="btn btn-sm btn-outline-danger" data-del="${r.id}">ลบ</button>
@@ -183,6 +287,9 @@ function openAdd() {
   document.getElementById("type-expense").checked = true;
   fldDate.value = todayBangkok();
   applyTypeUI("expense");
+  selectedTagIds = new Set();
+  txnTagNew.value = "";
+  renderTagChips();
   modal.show();
 }
 
@@ -202,6 +309,9 @@ function openEdit(id) {
   fldToAccount.value = r.to_account_id ?? "";
   applyTypeUI(r.type);
   if (r.type !== "transfer") fillModalCategories(r.type, r.category_id ?? "");
+  selectedTagIds = new Set((r.transaction_tags ?? []).map((tt) => tt.tag_id));
+  txnTagNew.value = "";
+  renderTagChips();
   modal.show();
 }
 
@@ -251,9 +361,8 @@ const multiSelectedType = () => document.querySelector("input[name=multi-type]:c
 function fillMultiCategories(type) {
   mCategory.innerHTML =
     '<option value="">— ไม่ระบุ —</option>' +
-    categories
-      .filter((c) => c.type === type)
-      .map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+    orderedCategories(type)
+      .map(({ c, child }) => `<option value="${c.id}">${child ? "↳ " : ""}${escapeHtml(c.name)}</option>`)
       .join("");
 }
 
@@ -378,9 +487,15 @@ form.addEventListener("submit", async (e) => {
   const btn = form.querySelector("button[type=submit]");
 
   btn.disabled = true;
-  const { error } = id
-    ? await supabase.from("transactions").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id)
-    : await supabase.from("transactions").insert(payload);
+  let error, txnId = id;
+  if (id) {
+    ({ error } = await supabase.from("transactions").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id));
+  } else {
+    const res = await supabase.from("transactions").insert(payload).select("id").single();
+    error = res.error;
+    txnId = res.data?.id;
+  }
+  if (!error && txnId) await syncTransactionTags(txnId);
   btn.disabled = false;
 
   if (error) return toast("error", "บันทึกไม่สำเร็จ: " + error.message);
@@ -392,6 +507,7 @@ form.addEventListener("submit", async (e) => {
 fType.addEventListener("change", loadTransactions);
 fCategory.addEventListener("change", loadTransactions);
 fMonth.addEventListener("change", loadTransactions);
+fTag.addEventListener("change", loadTransactions);
 
 let searchTimer;
 fSearch.addEventListener("input", () => {
@@ -403,14 +519,78 @@ fClear.addEventListener("click", () => {
   fMonth.value = todayBangkok().slice(0, 7);
   fType.value = "all";
   fCategory.value = "";
+  fTag.value = "";
   fSearch.value = "";
   loadTransactions();
+});
+
+// --- แท็ก: เลือก/เพิ่ม/จัดการ ---
+txnTags.addEventListener("click", (e) => {
+  const id = e.target.closest("[data-tag]")?.dataset.tag;
+  if (!id) return;
+  if (selectedTagIds.has(id)) selectedTagIds.delete(id);
+  else selectedTagIds.add(id);
+  renderTagChips();
+});
+txnTagAdd.addEventListener("click", addNewTag);
+txnTagNew.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    addNewTag();
+  }
+});
+
+fTagManage.addEventListener("click", () => {
+  renderTagManage();
+  tagModal.show();
+});
+tagManageList.addEventListener("click", async (e) => {
+  const renameId = e.target.closest("[data-tag-rename]")?.dataset.tagRename;
+  const delId = e.target.closest("[data-tag-del]")?.dataset.tagDel;
+  if (renameId) {
+    const t = tags.find((x) => x.id === renameId);
+    const { value, isConfirmed } = await Swal.fire({
+      title: "เปลี่ยนชื่อแท็ก",
+      input: "text",
+      inputValue: t?.name ?? "",
+      showCancelButton: true,
+      confirmButtonText: "บันทึก",
+      cancelButtonText: "ยกเลิก",
+      inputValidator: (v) => (!v.trim() ? "ใส่ชื่อแท็ก" : undefined),
+    });
+    if (!isConfirmed) return;
+    const { error } = await supabase.from("tags").update({ name: value.trim() }).eq("id", renameId);
+    if (error) return toast("error", "เปลี่ยนชื่อไม่สำเร็จ: " + error.message);
+    await loadTags();
+    renderTagManage();
+    loadTransactions();
+  }
+  if (delId) {
+    const t = tags.find((x) => x.id === delId);
+    const res = await Swal.fire({
+      title: `ลบแท็ก "${t?.name ?? ""}"?`,
+      text: "จะถูกเอาออกจากทุกรายการที่ติดไว้",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "ลบ",
+      cancelButtonText: "ยกเลิก",
+      confirmButtonColor: "#dc3545",
+    });
+    if (!res.isConfirmed) return;
+    const { error } = await supabase.from("tags").delete().eq("id", delId);
+    if (error) return toast("error", "ลบไม่สำเร็จ: " + error.message);
+    selectedTagIds.delete(delId);
+    if (fTag.value === delId) fTag.value = "";
+    await loadTags();
+    renderTagManage();
+    loadTransactions();
+  }
 });
 
 // --- init ---
 async function init() {
   fMonth.value = todayBangkok().slice(0, 7); // เดือนปัจจุบันเป็น default
-  await Promise.all([loadCategories(), loadAccounts()]);
+  await Promise.all([loadCategories(), loadAccounts(), loadTags()]);
   await loadTransactions();
 }
 

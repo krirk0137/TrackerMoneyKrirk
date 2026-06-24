@@ -29,16 +29,28 @@ const escapeHtml = (s) =>
 
 // --- data ---
 async function loadCategories() {
-  const { data } = await supabase.from("categories").select("id, name, type").order("sort_order");
+  const { data } = await supabase.from("categories").select("id, name, type, parent_id").order("sort_order");
   categories = data ?? [];
+}
+
+// เรียงหมวดของ type แบบลำดับชั้น: หมวดหลักตามด้วยหมวดย่อย
+function orderedCategories(type) {
+  const list = categories.filter((c) => c.type === type);
+  const tops = list.filter((c) => !c.parent_id);
+  const out = [];
+  for (const t of tops) {
+    out.push({ c: t, child: false });
+    for (const ch of list.filter((x) => x.parent_id === t.id)) out.push({ c: ch, child: true });
+  }
+  for (const c of list) if (c.parent_id && !tops.some((t) => t.id === c.parent_id)) out.push({ c, child: true });
+  return out;
 }
 
 function fillModalCategories(type, selectedId = "") {
   fldCategory.innerHTML =
     '<option value="">— ไม่ระบุ —</option>' +
-    categories
-      .filter((c) => c.type === type)
-      .map((c) => `<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${escapeHtml(c.name)}</option>`)
+    orderedCategories(type)
+      .map(({ c, child }) => `<option value="${c.id}" ${c.id === selectedId ? "selected" : ""}>${child ? "↳ " : ""}${escapeHtml(c.name)}</option>`)
       .join("");
 }
 
