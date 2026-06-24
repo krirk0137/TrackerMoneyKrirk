@@ -77,7 +77,8 @@
 - ✅ Frontend (บัญชี+โอน): แท็บ "บัญชี" `accounts.js` (CRUD + ยอดสด + สินทรัพย์สุทธิ + archive) · ฟอร์มรายการเลือกบัญชี + ประเภท "โอน" (จาก→ไป, validate, ไม่นับรับ/จ่าย) · คอลัมน์บัญชีในตาราง + CSV · multi-day เลือกบัญชี · recurring stamp บัญชีดีฟอลต์ · โอนถูกกันออกจากผลรวม/กราฟ/ปฏิทิน
 - ✅ Frontend (V2.1): **หมวดย่อย** (`categories.js` parent_id + dropdown เยื้องชั้น) · **แท็ก** (`transactions.js`: chip ในฟอร์ม + badge ในตาราง + filter + modal จัดการ) · **งบประมาณ** แท็บใหม่ `budgets.js` (งบรวม/รายหมวด รายเดือน + แถบ 🟢🟡⚠️🔴)
 - ⏳ **ต้องทำก่อนใช้ branch v2:** (1) **backup** (2) รัน `sql/07` + `sql/08` บน Supabase (3) เทสต์ login จริง — บัญชี/โอน/แท็ก/หมวดย่อย/งบ
-- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** recurring_rules ยืดหยุ่น + generator (ยังไม่มี schema — V1 `recurring` ยังใช้อยู่) · UI multi-currency (schema พร้อม default THB) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend) · balances summary บน dashboard · (option) ผูก `budgets` เข้ากับ dashboard แทน `categories.monthly_budget`
+- ❌ **recurring_rules (รายวัน/สัปดาห์/ปี/ทุก N) — ตัดออก** เจ้าของยืนยัน 2026-06-25 ว่าใช้รายการประจำแค่รายเดือน → ใช้ V1 `recurring` เดิมพอ (อย่ารื้อกลับมาทำโดยไม่มีเหตุผลใหม่)
+- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** UI multi-currency (schema พร้อม default THB — เจ้าของเอนเอียง "ข้าม" ถ้าไม่เที่ยว ตปท. บ่อย) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend) · balances summary บน dashboard · (option) ผูก `budgets` เข้ากับ dashboard แทน `categories.monthly_budget`
 - หมายเหตุงบ: ตอนนี้มี 2 ที่ — dashboard ยังใช้ `categories.monthly_budget` (V1.5), แท็บ "งบประมาณ" ใหม่ใช้ตาราง `budgets` (รวมงบรวมทุกหมวด). ยังไม่รวมเป็นระบบเดียว
 
 **ตัวเอก: หลายบัญชี + โอนระหว่างบัญชี (ไม่นับเป็นรายรับ/จ่าย)** — เจ้าของอยากได้ชัดเจน
