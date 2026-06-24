@@ -12,10 +12,11 @@
 - **Repo:** https://github.com/krirk0137/TrackerMoneyKrirk
 - เจ้าของถนัด HTML/Bootstrap/JS แบบ vanilla · สื่อสารภาษาไทย
 
-## สถานะปัจจุบัน (2026-06-24): Phase 1–6 + V1.5 เสร็จ (V1.5 ยังไม่ deploy — รอรัน sql/06 + push)
+## สถานะปัจจุบัน (2026-06-25): V1.5 deployed (live) · V2 เสร็จครบบน branch `v2` (รอ test + merge เข้า main)
 
 ฟีเจอร์ที่มี: Login+RLS · CRUD รายการ + filter + Export CSV · Dashboard (การ์ดสรุป + กราฟวงกลม/แท่ง 6 เดือน + รายการล่าสุด + งบประมาณรายหมวด) · จัดการหมวดหมู่ · รายการประจำ (auto-gen รายเดือน) · PWA · keep-alive + backup workflows
-**V1.5 (2026-06-24):** Dark mode · ปฏิทินรายวัน · เป้าหมายออมเงิน · เพิ่มหลายวันพร้อมกัน · แจ้งเตือนงบ 50/80/100% · โน้ตในรายการประจำ/tooltip กราฟ/กาง row dashboard
+**V1.5 (2026-06-24, อยู่ main/live):** Dark mode · ปฏิทินรายวัน · เป้าหมายออมเงิน · เพิ่มหลายวันพร้อมกัน · แจ้งเตือนงบ 50/80/100% · โน้ตในรายการประจำ/tooltip กราฟ/กาง row dashboard
+**V2 (2026-06-25, branch `v2` ยังไม่ deploy):** หลายบัญชี + โอนระหว่างบัญชี · หมวดย่อย · แท็ก · งบประมาณรวม/รายหมวด — ครบตามที่ใช้จริง (ตัด recurring_rules + multi-currency ออก) · เหลือแค่: backup → รัน sql/07,08 → เทสต์ → merge → รัน sql/09 (account_id NOT NULL)
 
 ---
 
@@ -78,7 +79,9 @@
 - ✅ Frontend (V2.1): **หมวดย่อย** (`categories.js` parent_id + dropdown เยื้องชั้น) · **แท็ก** (`transactions.js`: chip ในฟอร์ม + badge ในตาราง + filter + modal จัดการ) · **งบประมาณ** แท็บใหม่ `budgets.js` (งบรวม/รายหมวด รายเดือน + แถบ 🟢🟡⚠️🔴)
 - ⏳ **ต้องทำก่อนใช้ branch v2:** (1) **backup** (2) รัน `sql/07` + `sql/08` บน Supabase (3) เทสต์ login จริง — บัญชี/โอน/แท็ก/หมวดย่อย/งบ
 - ❌ **recurring_rules (รายวัน/สัปดาห์/ปี/ทุก N) — ตัดออก** เจ้าของยืนยัน 2026-06-25 ว่าใช้รายการประจำแค่รายเดือน → ใช้ V1 `recurring` เดิมพอ (อย่ารื้อกลับมาทำโดยไม่มีเหตุผลใหม่)
-- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** UI multi-currency (schema พร้อม default THB — เจ้าของเอนเอียง "ข้าม" ถ้าไม่เที่ยว ตปท. บ่อย) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend) · balances summary บน dashboard · (option) ผูก `budgets` เข้ากับ dashboard แทน `categories.monthly_budget`
+- ❌ **multi-currency — ตัดออก** เจ้าของยืนยัน 2026-06-25 ว่าไม่ได้ใช้ (schema cols ยังอยู่ default THB เฉยๆ ไม่มี UI) (อย่ารื้อกลับมาทำโดยไม่มีเหตุผลใหม่)
+- ⏳ **ขั้นตอนไป live (เรียงลำดับ):** (1) backup (2) รัน `sql/07` + `sql/08` (3) เทสต์ branch v2 (4) merge `v2`→`main` (5) รัน `sql/09_v2_account_not_null.sql` บังคับ account_id NOT NULL
+- 🔜 **(option) polish หลัง deploy:** balances summary บน dashboard · รวมระบบงบให้ dashboard อ่านจากตาราง `budgets` แทน `categories.monthly_budget` (ตอนนี้งบโผล่ 2 ที่)
 - หมายเหตุงบ: ตอนนี้มี 2 ที่ — dashboard ยังใช้ `categories.monthly_budget` (V1.5), แท็บ "งบประมาณ" ใหม่ใช้ตาราง `budgets` (รวมงบรวมทุกหมวด). ยังไม่รวมเป็นระบบเดียว
 
 **ตัวเอก: หลายบัญชี + โอนระหว่างบัญชี (ไม่นับเป็นรายรับ/จ่าย)** — เจ้าของอยากได้ชัดเจน
@@ -102,6 +105,7 @@
 ---
 
 ## ค้างอยู่ / housekeeping (เช็คก่อนทำงานใหม่)
+- [ ] 🚀 **deploy V2 (branch `v2`):** backup → รัน `sql/07_v2_accounts.sql` + `sql/08_v2_features.sql` → เทสต์ → merge `v2`→`main` → รัน `sql/09_v2_account_not_null.sql`
 - [ ] 🆕 **รัน `sql/06_savings.sql` บน Supabase** — แท็บ "ออมเงิน" จะ error 42P01/42501 ถ้ายังไม่รัน (V1.5)
 - [ ] ยืนยันว่ารัน `sql/05_phase6.sql` บน Supabase แล้ว (ถ้าแท็บหมวดหมู่/ประจำ error = ยังไม่รัน)
 - [ ] 🔑 **reset รหัส database** (เคยหลุดในแชต `!@Krirk0137`) + อัปเดต GitHub secret `SUPABASE_DB_URL` + **ลบบรรทัดใบ้รหัสใน README** (`> p ! @ K 7`)
