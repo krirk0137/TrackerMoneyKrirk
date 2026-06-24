@@ -22,6 +22,12 @@ const fldCategory = document.getElementById("txn-category");
 const fldDate = document.getElementById("txn-date");
 const fldPayment = document.getElementById("txn-payment");
 const fldNote = document.getElementById("txn-note");
+const fldAccount = document.getElementById("txn-account");
+const fldToAccount = document.getElementById("txn-to-account");
+const accountLabel = document.getElementById("txn-account-label");
+const toAccountWrap = document.getElementById("txn-to-account-wrap");
+const categoryWrap = document.getElementById("txn-category-wrap");
+const paymentWrap = document.getElementById("txn-payment-wrap");
 
 // modal "เพิ่มหลายวัน"
 const btnAddMulti = document.getElementById("btn-add-multi");
@@ -35,10 +41,12 @@ const mPayment = document.getElementById("multi-payment");
 const mNote = document.getElementById("multi-note");
 const mDays = document.getElementById("multi-days");
 const mCount = document.getElementById("multi-count");
+const mAccount = document.getElementById("multi-account");
 
-const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย" };
+const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย", transfer: "โอน" };
 
 let categories = [];
+let accounts = [];
 let currentRows = [];
 
 // --- helpers ---
@@ -66,10 +74,41 @@ function fillModalCategories(type, selectedId = "") {
       .join("");
 }
 
+// โหลดบัญชี (ไม่เอาที่ซ่อนไว้) ไว้เติม dropdown ในฟอร์ม
+async function loadAccounts() {
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, name, type")
+    .eq("is_archived", false)
+    .order("sort_order")
+    .order("name");
+  if (error) return toast("error", "โหลดบัญชีไม่สำเร็จ: " + error.message);
+  accounts = data ?? [];
+  const opts = accounts.map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join("");
+  fldAccount.innerHTML = opts;
+  fldToAccount.innerHTML = opts;
+  mAccount.innerHTML = opts;
+}
+
+// สลับฟิลด์ในฟอร์มตามประเภท: โอน → ซ่อนหมวด/วิธีจ่าย, โชว์บัญชีปลายทาง
+function applyTypeUI(type) {
+  const transfer = type === "transfer";
+  accountLabel.textContent = transfer ? "จากบัญชี" : "บัญชี";
+  toAccountWrap.classList.toggle("d-none", !transfer);
+  categoryWrap.classList.toggle("d-none", transfer);
+  paymentWrap.classList.toggle("d-none", transfer);
+  if (!transfer) fillModalCategories(type, fldCategory.value);
+}
+
 async function loadTransactions() {
   let q = supabase
     .from("transactions")
-    .select("id, type, amount, txn_date, note, payment_method, category_id, category:categories(name)")
+    .select(
+      "id, type, amount, txn_date, note, payment_method, category_id, account_id, to_account_id, " +
+        "category:categories(name), " +
+        "account:accounts!transactions_account_id_fkey(name), " +
+        "to_account:accounts!transactions_to_account_id_fkey(name)"
+    )
     .order("txn_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -89,22 +128,34 @@ async function loadTransactions() {
 
 function renderTable(rows) {
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">ไม่มีรายการ</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">ไม่มีรายการ</td></tr>`;
     totalsCell.textContent = "";
     return;
   }
 
+  const dash = '<span class="text-muted">—</span>';
   tbody.innerHTML = rows
     .map((r) => {
+      const transfer = r.type === "transfer";
       const income = r.type === "income";
-      const cls = income ? "text-success" : "text-danger";
-      const badge = income ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger";
-      const dash = '<span class="text-muted">—</span>';
+      const amtCls = transfer ? "text-info" : income ? "text-success" : "text-danger";
+      const amtSign = transfer ? "" : income ? "+" : "−";
+      const badge = transfer
+        ? "bg-info-subtle text-info"
+        : income
+        ? "bg-success-subtle text-success"
+        : "bg-danger-subtle text-danger";
+      const acct = transfer
+        ? `${escapeHtml(r.account?.name ?? "—")} → ${escapeHtml(r.to_account?.name ?? "—")}`
+        : r.account?.name
+        ? escapeHtml(r.account.name)
+        : dash;
       return `<tr>
         <td class="text-nowrap">${r.txn_date}</td>
         <td><span class="badge ${badge}">${TH_TYPE[r.type]}</span></td>
-        <td>${r.category?.name ? escapeHtml(r.category.name) : dash}</td>
-        <td class="text-end fw-semibold ${cls} text-nowrap">${income ? "+" : "−"}${formatTHB(r.amount)}</td>
+        <td>${transfer ? dash : r.category?.name ? escapeHtml(r.category.name) : dash}</td>
+        <td class="text-nowrap small">${acct}</td>
+        <td class="text-end fw-semibold ${amtCls} text-nowrap">${amtSign}${formatTHB(r.amount)}</td>
         <td>${r.payment_method ? escapeHtml(r.payment_method) : dash}</td>
         <td>${r.note ? escapeHtml(r.note) : dash}</td>
         <td class="text-end text-nowrap">
@@ -125,12 +176,13 @@ function renderTable(rows) {
 
 // --- modal ---
 function openAdd() {
+  if (!accounts.length) return toast("error", "เพิ่มบัญชีในแท็บ \"บัญชี\" ก่อนนะ");
   form.reset();
   fldId.value = "";
   modalTitle.textContent = "เพิ่มรายการ";
   document.getElementById("type-expense").checked = true;
   fldDate.value = todayBangkok();
-  fillModalCategories("expense");
+  applyTypeUI("expense");
   modal.show();
 }
 
@@ -140,12 +192,16 @@ function openEdit(id) {
   form.reset();
   fldId.value = r.id;
   modalTitle.textContent = "แก้ไขรายการ";
-  document.getElementById(r.type === "income" ? "type-income" : "type-expense").checked = true;
+  const typeRadio = { income: "type-income", expense: "type-expense", transfer: "type-transfer" }[r.type];
+  document.getElementById(typeRadio).checked = true;
   fldAmount.value = r.amount;
   fldDate.value = r.txn_date;
   fldPayment.value = r.payment_method ?? "";
   fldNote.value = r.note ?? "";
-  fillModalCategories(r.type, r.category_id ?? "");
+  fldAccount.value = r.account_id ?? "";
+  fldToAccount.value = r.to_account_id ?? "";
+  applyTypeUI(r.type);
+  if (r.type !== "transfer") fillModalCategories(r.type, r.category_id ?? "");
   modal.show();
 }
 
@@ -174,11 +230,12 @@ const csvCell = (v) => {
 
 function exportCsv() {
   if (!currentRows.length) return toast("error", "ไม่มีรายการให้ export");
-  const header = ["วันที่", "ประเภท", "หมวดหมู่", "จำนวน", "วิธีจ่าย", "โน้ต"];
+  const header = ["วันที่", "ประเภท", "หมวดหมู่", "บัญชี", "จำนวน", "วิธีจ่าย", "โน้ต"];
   const body = currentRows.map((r) => [
     r.txn_date,
     TH_TYPE[r.type],
-    r.category?.name ?? "",
+    r.type === "transfer" ? "" : r.category?.name ?? "",
+    r.type === "transfer" ? `${r.account?.name ?? ""} → ${r.to_account?.name ?? ""}` : r.account?.name ?? "",
     r.amount,
     r.payment_method ?? "",
     r.note ?? "",
@@ -223,6 +280,7 @@ function updateMultiCount() {
 }
 
 function openMultiAdd() {
+  if (!accounts.length) return toast("error", "เพิ่มบัญชีในแท็บ \"บัญชี\" ก่อนนะ");
   multiForm.reset();
   document.getElementById("multi-type-expense").checked = true;
   mMonth.value = fMonth.value || todayBangkok().slice(0, 7);
@@ -256,10 +314,12 @@ multiForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const days = selectedDays();
   if (!days.length) return toast("error", "ยังไม่ได้เลือกวัน");
+  if (!mAccount.value) return toast("error", "เลือกบัญชีก่อน");
   const ym = mMonth.value;
   const base = {
     type: multiSelectedType(),
     amount: Number(mAmount.value),
+    account_id: mAccount.value,
     category_id: mCategory.value || null,
     payment_method: mPayment.value || null,
     note: mNote.value.trim() || null,
@@ -283,7 +343,7 @@ btnAddMulti.addEventListener("click", openMultiAdd);
 btnExport.addEventListener("click", exportCsv);
 
 document.querySelectorAll("input[name=txn-type]").forEach((radio) =>
-  radio.addEventListener("change", () => fillModalCategories(selectedType()))
+  radio.addEventListener("change", () => applyTypeUI(selectedType()))
 );
 
 tbody.addEventListener("click", (e) => {
@@ -295,12 +355,23 @@ tbody.addEventListener("click", (e) => {
 
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+  const type = selectedType();
+  const transfer = type === "transfer";
+
+  if (!fldAccount.value) return toast("error", "เลือกบัญชีก่อน");
+  if (transfer) {
+    if (!fldToAccount.value) return toast("error", "เลือกบัญชีปลายทาง");
+    if (fldToAccount.value === fldAccount.value) return toast("error", "บัญชีต้นทาง/ปลายทางต้องคนละบัญชี");
+  }
+
   const payload = {
-    type: selectedType(),
+    type,
     amount: Number(fldAmount.value),
-    category_id: fldCategory.value || null,
     txn_date: fldDate.value,
-    payment_method: fldPayment.value || null,
+    account_id: fldAccount.value,
+    to_account_id: transfer ? fldToAccount.value : null,
+    category_id: transfer ? null : fldCategory.value || null,
+    payment_method: transfer ? null : fldPayment.value || null,
     note: fldNote.value.trim() || null,
   };
   const id = fldId.value;
@@ -339,7 +410,7 @@ fClear.addEventListener("click", () => {
 // --- init ---
 async function init() {
   fMonth.value = todayBangkok().slice(0, 7); // เดือนปัจจุบันเป็น default
-  await loadCategories();
+  await Promise.all([loadCategories(), loadAccounts()]);
   await loadTransactions();
 }
 
@@ -351,6 +422,11 @@ document.addEventListener("auth:logout", () => {
 
 // ซิงก์ dropdown หมวดหมู่เมื่อมีการเพิ่ม/แก้/ลบหมวดในแท็บหมวดหมู่
 document.addEventListener("categories:changed", loadCategories);
+
+// ซิงก์ dropdown บัญชีเมื่อมีการเพิ่ม/แก้/ลบบัญชี
+document.addEventListener("accounts:changed", loadAccounts);
+
+// รีเฟรชยอดบัญชีเมื่อรายการเปลี่ยน (เผื่อแท็บบัญชีเปิดอยู่ภายหลัง) — แท็บบัญชีโหลด lazy อยู่แล้ว
 
 // รีโหลดตารางเมื่อมีการสร้างรายการประจำอัตโนมัติ
 document.addEventListener("transactions:changed", loadTransactions);

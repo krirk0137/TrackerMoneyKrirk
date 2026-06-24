@@ -14,7 +14,7 @@ const elBudgetSection = document.getElementById("dash-budget-section");
 const elBudgetList = document.getElementById("dash-budget-list");
 
 const PALETTE = ["#0d6efd", "#dc3545", "#198754", "#ffc107", "#6f42c1", "#fd7e14", "#20c997", "#6c757d", "#d63384", "#0dcaf0"];
-const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย" };
+const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย", transfer: "โอน" };
 
 let pieChart, barChart;
 
@@ -151,9 +151,11 @@ async function loadRecent() {
   }
   elRecent.innerHTML = rows
     .map((r, i) => {
+      const transfer = r.type === "transfer";
       const income = r.type === "income";
-      const cls = income ? "text-success" : "text-danger";
-      const label = r.category?.name ?? r.note ?? TH_TYPE[r.type];
+      const cls = transfer ? "text-info" : income ? "text-success" : "text-danger";
+      const sign = transfer ? "" : income ? "+" : "−";
+      const label = transfer ? "โอนเงิน" : r.category?.name ?? r.note ?? TH_TYPE[r.type];
       const detail = [
         r.note ? `📝 ${escapeHtml(r.note)}` : "ไม่มีโน้ต",
         r.payment_method ? `· ${escapeHtml(r.payment_method)}` : "",
@@ -161,7 +163,7 @@ async function loadRecent() {
       return `<tr role="button" data-recent="${i}">
         <td class="text-nowrap text-muted small">${r.txn_date}</td>
         <td>${escapeHtml(label)} <span class="text-muted small">${r.note ? "📝" : ""}</span></td>
-        <td class="text-end fw-semibold ${cls} text-nowrap">${income ? "+" : "−"}${formatTHB(r.amount)}</td>
+        <td class="text-end fw-semibold ${cls} text-nowrap">${sign}${formatTHB(r.amount)}</td>
       </tr>
       <tr class="d-none" data-recent-detail="${i}">
         <td colspan="3" class="small text-muted bg-body-secondary">${detail}</td>

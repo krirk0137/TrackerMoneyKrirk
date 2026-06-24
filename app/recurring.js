@@ -143,6 +143,14 @@ async function generateDue(silent = false) {
     .lte("txn_date", end);
   const done = new Set((existing ?? []).map((r) => r.recurring_id));
 
+  // บัญชีดีฟอลต์สำหรับรายการประจำ (เงินสด ถ้ามี ไม่งั้นใบแรก) — เป็น null บน DB ที่ยังไม่ migrate V2 (ยังลงได้ปกติ)
+  const { data: accts } = await supabase
+    .from("accounts")
+    .select("id, type")
+    .eq("is_archived", false)
+    .order("sort_order");
+  const defaultAccountId = (accts?.find((a) => a.type === "cash") ?? accts?.[0])?.id ?? null;
+
   const [y, m] = ym.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const toInsert = active
@@ -151,6 +159,7 @@ async function generateDue(silent = false) {
       type: t.type,
       amount: t.amount,
       category_id: t.category_id,
+      account_id: defaultAccountId,
       txn_date: `${ym}-${String(Math.min(t.day_of_month, lastDay)).padStart(2, "0")}`,
       note: t.note,
       payment_method: t.payment_method,

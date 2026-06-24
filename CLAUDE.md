@@ -70,7 +70,15 @@
 - [x] โน้ตใน tooltip กราฟ — `dashboard.js` renderPie (afterBody แสดงโน้ตต่อ slice สูงสุด 5)
 - [ ] (option) แนบรูปใบเสร็จ → Supabase Storage + RLS · Export PDF/Excel — **ยังไม่ทำ (ของหนัก ข้ามไปก่อน)**
 
-### ▶ V2 — รื้อ/ขยาย schema ครั้งเดียว (ยังอยู่ Supabase + web)
+### ▶ V2 — รื้อ/ขยาย schema ครั้งเดียว (🚧 กำลังทำบน branch `v2` — ยังไม่ merge เข้า main)
+
+**สถานะ V2 (2026-06-24): V2.0 core เสร็จบน branch `v2` แต่ยังไม่ deploy + ยังไม่เทสต์กับ DB จริง**
+- ✅ DB: `sql/07_v2_accounts.sql` (accounts + transactions ขยาย account_id[nullable ชั่วคราว]/to_account_id/type 'transfer'/`chk_transfer`/multi-currency cols + `amount_base` generated + view `account_balances` + handle_new_user seed บัญชี + `set_updated_at`) · `sql/08_v2_features.sql` (tags + transaction_tags + categories.parent_id/is_archived + budgets per-period)
+- ✅ Frontend: แท็บ "บัญชี" `accounts.js` (CRUD + ยอดสด + สินทรัพย์สุทธิ + archive) · ฟอร์มรายการรองรับเลือกบัญชี + ประเภท "โอน" (จาก→ไป, validate, ไม่นับรับ/จ่าย) · คอลัมน์บัญชีในตาราง + CSV · multi-day เลือกบัญชี · recurring stamp บัญชีดีฟอลต์ · โอนถูกกันออกจากผลรวม/กราฟ/ปฏิทิน
+- ⏳ **ต้องทำก่อนใช้ branch v2:** (1) **backup** (2) รัน `sql/07` + `sql/08` บน Supabase (3) เทสต์ login จริง — สร้างบัญชี/โอน/ดูยอด
+- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** UI แท็ก · UI หมวดย่อย (parent_id) · UI งบแบบงวด (ตอนนี้ dashboard ยังใช้ `categories.monthly_budget` เดิม) · recurring_rules ยืดหยุ่น + generator (V1 `recurring` ยังใช้อยู่) · UI multi-currency (schema พร้อม default THB) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend แล้ว) · balances summary บน dashboard
+- ลำดับเฟสที่เหลือ: V2.1 budgets+recurring_rules → V2.2 tags+subcat → V2.3 (option) multi-currency
+
 **ตัวเอก: หลายบัญชี + โอนระหว่างบัญชี (ไม่นับเป็นรายรับ/จ่าย)** — เจ้าของอยากได้ชัดเจน
 - ใช้ **schema ใน `TodoListFromClaude` เป็นฐาน** (ออกแบบดี รัดกุม): accounts, transactions เพิ่ม account_id/to_account_id/type 'transfer' + `chk_transfer`, tags, sub-category (parent_id), budgets (per period), recurring_rules + generator, savings_goals, multi-currency (amount_base generated), view `account_balances`, RPC summary/breakdown/budget
 - Subscription tracking = recurring + แจ้งเตือนก่อนตัดเงิน
@@ -79,7 +87,7 @@
 **คำแนะนำเพิ่มเติมจาก Claude สำหรับ V2 (สำคัญ — เป็นข้อมูลการเงิน):**
 1. **Backup ก่อนเริ่ม migration** — รัน backup workflow + โหลด `.sql` เก็บไว้ก่อนแตะ schema
 2. **ทำบน branch แยก** (เช่น `v2`) อย่าพัง main ที่ live อยู่ — เทสต์ให้ผ่านแล้วค่อย merge
-3. เขียน migration เป็น `sql/06_*.sql` ที่ **idempotent** + มี **data migration**: ย้าย transaction เดิมเข้า account ดีฟอลต์ "เงินสด" (เติม account_id ให้แถวเก่า)
+3. เขียน migration ที่ **idempotent** + มี **data migration**: ย้าย transaction เดิมเข้า account ดีฟอลต์ "เงินสด" (เติม account_id ให้แถวเก่า) — ✅ ทำแล้วที่ `sql/07_v2_accounts.sql` (06 ถูกใช้โดย savings ไปแล้ว)
 4. ใช้ `set_updated_at()` trigger (ตาม FromClaude) แทนการ set `updated_at` ใน JS เอง
 5. ถ้า V2 หน้าจอบานมาก (บัญชี/แท็ก/ปฏิทิน) ค่อยพิจารณา framework เบาแบบ no-build (Alpine.js / Preact ผ่าน CDN) — ยังไม่บังคับ
 

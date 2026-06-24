@@ -55,6 +55,7 @@
       <ul class="nav nav-pills mb-3 flex-wrap" id="main-tabs">
         <li class="nav-item"><button class="nav-link active" data-view="transactions">รายการ</button></li>
         <li class="nav-item"><button class="nav-link" data-view="dashboard">Dashboard</button></li>
+        <li class="nav-item"><button class="nav-link" data-view="accounts">บัญชี</button></li>
         <li class="nav-item"><button class="nav-link" data-view="calendar">ปฏิทิน</button></li>
         <li class="nav-item"><button class="nav-link" data-view="savings">ออมเงิน</button></li>
         <li class="nav-item"><button class="nav-link" data-view="categories">หมวดหมู่</button></li>
@@ -110,6 +111,7 @@
                   <th>วันที่</th>
                   <th>ประเภท</th>
                   <th>หมวดหมู่</th>
+                  <th>บัญชี</th>
                   <th class="text-end">จำนวน</th>
                   <th>วิธีจ่าย</th>
                   <th>โน้ต</th>
@@ -120,7 +122,7 @@
               <tfoot class="table-light">
                 <tr>
                   <td colspan="3" class="fw-semibold">รวมตามตัวกรอง</td>
-                  <td colspan="4" class="text-end" id="txn-totals"></td>
+                  <td colspan="5" class="text-end" id="txn-totals"></td>
                 </tr>
               </tfoot>
             </table>
@@ -187,6 +189,19 @@
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- ===== Accounts ===== -->
+      <section id="view-accounts" class="app-view-section d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h2 class="h5 mb-0">บัญชี / กระเป๋าเงิน</h2>
+          <button id="btn-add-account" class="btn btn-primary btn-sm">+ เพิ่มบัญชี</button>
+        </div>
+        <div class="card mb-3"><div class="card-body d-flex justify-content-between align-items-center">
+          <span class="text-muted">รวมทุกบัญชี (สินทรัพย์สุทธิ)</span>
+          <span class="fs-4 fw-semibold" id="acc-networth">฿0.00</span>
+        </div></div>
+        <div class="row g-3" id="account-list"></div>
       </section>
 
       <!-- ===== Calendar ===== -->
@@ -273,6 +288,8 @@
                 <label class="btn btn-outline-danger" for="type-expense">รายจ่าย</label>
                 <input type="radio" class="btn-check" name="txn-type" id="type-income" value="income" />
                 <label class="btn btn-outline-success" for="type-income">รายรับ</label>
+                <input type="radio" class="btn-check" name="txn-type" id="type-transfer" value="transfer" />
+                <label class="btn btn-outline-info" for="type-transfer">โอน</label>
               </div>
             </div>
 
@@ -282,6 +299,16 @@
             </div>
 
             <div class="mb-3">
+              <label class="form-label" id="txn-account-label">บัญชี</label>
+              <select id="txn-account" class="form-select" required></select>
+            </div>
+
+            <div class="mb-3 d-none" id="txn-to-account-wrap">
+              <label class="form-label">ไปบัญชี</label>
+              <select id="txn-to-account" class="form-select"></select>
+            </div>
+
+            <div class="mb-3" id="txn-category-wrap">
               <label class="form-label">หมวดหมู่</label>
               <select id="txn-category" class="form-select"><option value="">— ไม่ระบุ —</option></select>
             </div>
@@ -291,7 +318,7 @@
               <input type="date" id="txn-date" class="form-control" required />
             </div>
 
-            <div class="mb-3">
+            <div class="mb-3" id="txn-payment-wrap">
               <label class="form-label">วิธีจ่าย</label>
               <select id="txn-payment" class="form-select">
                 <option value="">— ไม่ระบุ —</option>
@@ -445,6 +472,10 @@
               </div>
             </div>
             <div class="mb-3">
+              <label class="form-label">บัญชี</label>
+              <select id="multi-account" class="form-select" required></select>
+            </div>
+            <div class="mb-3">
               <label class="form-label">หมวดหมู่</label>
               <select id="multi-category" class="form-select"><option value="">— ไม่ระบุ —</option></select>
             </div>
@@ -520,6 +551,50 @@
     </div>
   </div>
 
+  <!-- Modal: เพิ่ม / แก้ไขบัญชี -->
+  <div class="modal fade" id="account-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="account-form">
+          <div class="modal-header">
+            <h5 class="modal-title" id="account-modal-title">เพิ่มบัญชี</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="account-id" />
+            <div class="mb-3">
+              <label class="form-label">ชื่อบัญชี</label>
+              <input type="text" id="account-name" class="form-control" maxlength="60" placeholder="เช่น กสิกร, เงินสด, TrueWallet" required />
+            </div>
+            <div class="row g-2">
+              <div class="col-7 mb-3">
+                <label class="form-label">ประเภท</label>
+                <select id="account-type" class="form-select">
+                  <option value="cash">เงินสด</option>
+                  <option value="bank">บัญชีธนาคาร</option>
+                  <option value="credit_card">บัตรเครดิต</option>
+                  <option value="e_wallet">e-Wallet</option>
+                  <option value="savings">เงินออม</option>
+                  <option value="investment">การลงทุน</option>
+                  <option value="other">อื่นๆ</option>
+                </select>
+              </div>
+              <div class="col-5 mb-3">
+                <label class="form-label">ยอดตั้งต้น</label>
+                <input type="number" id="account-initial" class="form-control" step="0.01" value="0" />
+              </div>
+            </div>
+            <div class="form-text">ยอดตั้งต้น = เงินที่มีอยู่ในบัญชีนี้ก่อนเริ่มบันทึก (ใส่ 0 ได้)</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">บันทึก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
@@ -528,6 +603,7 @@
   <script type="module" src="app/nav.js"></script>
   <script type="module" src="app/transactions.js"></script>
   <script type="module" src="app/dashboard.js"></script>
+  <script type="module" src="app/accounts.js"></script>
   <script type="module" src="app/calendar.js"></script>
   <script type="module" src="app/savings.js"></script>
   <script type="module" src="app/categories.js"></script>

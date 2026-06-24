@@ -9,7 +9,7 @@ const elDayTitle = document.getElementById("cal-day-title");
 const elDayList = document.getElementById("cal-day-list");
 
 const WEEKDAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
-const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย" };
+const TH_TYPE = { income: "รายรับ", expense: "รายจ่าย", transfer: "โอน" };
 const compact = new Intl.NumberFormat("th-TH", { maximumFractionDigits: 0 });
 
 const escapeHtml = (s) =>
@@ -34,7 +34,7 @@ async function load() {
     const d = Number(r.txn_date.slice(8, 10));
     const cell = (byDay[d] ??= { inc: 0, exp: 0, rows: [] });
     if (r.type === "income") cell.inc += Number(r.amount);
-    else cell.exp += Number(r.amount);
+    else if (r.type === "expense") cell.exp += Number(r.amount); // โอนไม่นับเป็นรับ/จ่าย แต่ยังโชว์ในรายการของวัน
     cell.rows.push(r);
   }
   renderGrid(ym);
@@ -72,14 +72,20 @@ function showDay(d) {
   elDayTitle.textContent = `รายการวันที่ ${d} (รับ +${compact.format(c.inc)} · จ่าย −${compact.format(c.exp)})`;
   elDayList.innerHTML = c.rows
     .map((r) => {
+      const transfer = r.type === "transfer";
       const income = r.type === "income";
-      const cls = income ? "text-success" : "text-danger";
-      const badge = income ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger";
-      const label = r.category?.name ?? r.note ?? TH_TYPE[r.type];
+      const cls = transfer ? "text-info" : income ? "text-success" : "text-danger";
+      const badge = transfer
+        ? "bg-info-subtle text-info"
+        : income
+        ? "bg-success-subtle text-success"
+        : "bg-danger-subtle text-danger";
+      const sign = transfer ? "" : income ? "+" : "−";
+      const label = transfer ? "โอนเงิน" : r.category?.name ?? r.note ?? TH_TYPE[r.type];
       return `<tr>
         <td><span class="badge ${badge}">${TH_TYPE[r.type]}</span></td>
         <td>${escapeHtml(label)}${r.note && r.category?.name ? ` <span class="text-muted small">📝 ${escapeHtml(r.note)}</span>` : ""}</td>
-        <td class="text-end fw-semibold ${cls} text-nowrap">${income ? "+" : "−"}${formatTHB(r.amount)}</td>
+        <td class="text-end fw-semibold ${cls} text-nowrap">${sign}${formatTHB(r.amount)}</td>
       </tr>`;
     })
     .join("");
