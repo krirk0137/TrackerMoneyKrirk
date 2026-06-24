@@ -1,7 +1,7 @@
 // Service worker แบบ network-first สำหรับไฟล์ในโดเมนตัวเอง
 // (ออนไลน์ = ได้ของใหม่เสมอ, ออฟไลน์ = ใช้ที่ cache ไว้)
 // CDN และ Supabase ปล่อยให้ไปเน็ตตามปกติ
-const CACHE = "tracker-v3";
+const CACHE = "tracker-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const ASSETS = [
   "./app/accounts.js",
   "./app/calendar.js",
   "./app/savings.js",
+  "./app/budgets.js",
   "./app/categories.js",
   "./app/recurring.js",
 ];

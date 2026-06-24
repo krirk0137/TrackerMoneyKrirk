@@ -72,12 +72,13 @@
 
 ### ▶ V2 — รื้อ/ขยาย schema ครั้งเดียว (🚧 กำลังทำบน branch `v2` — ยังไม่ merge เข้า main)
 
-**สถานะ V2 (2026-06-24): V2.0 core เสร็จบน branch `v2` แต่ยังไม่ deploy + ยังไม่เทสต์กับ DB จริง**
+**สถานะ V2 (2026-06-25): V2.0 core + V2.1 (subcat/tags/budgets) เสร็จบน branch `v2` แต่ยังไม่ deploy + ยังไม่เทสต์กับ DB จริง**
 - ✅ DB: `sql/07_v2_accounts.sql` (accounts + transactions ขยาย account_id[nullable ชั่วคราว]/to_account_id/type 'transfer'/`chk_transfer`/multi-currency cols + `amount_base` generated + view `account_balances` + handle_new_user seed บัญชี + `set_updated_at`) · `sql/08_v2_features.sql` (tags + transaction_tags + categories.parent_id/is_archived + budgets per-period)
-- ✅ Frontend: แท็บ "บัญชี" `accounts.js` (CRUD + ยอดสด + สินทรัพย์สุทธิ + archive) · ฟอร์มรายการรองรับเลือกบัญชี + ประเภท "โอน" (จาก→ไป, validate, ไม่นับรับ/จ่าย) · คอลัมน์บัญชีในตาราง + CSV · multi-day เลือกบัญชี · recurring stamp บัญชีดีฟอลต์ · โอนถูกกันออกจากผลรวม/กราฟ/ปฏิทิน
-- ⏳ **ต้องทำก่อนใช้ branch v2:** (1) **backup** (2) รัน `sql/07` + `sql/08` บน Supabase (3) เทสต์ login จริง — สร้างบัญชี/โอน/ดูยอด
-- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** UI แท็ก · UI หมวดย่อย (parent_id) · UI งบแบบงวด (ตอนนี้ dashboard ยังใช้ `categories.monthly_budget` เดิม) · recurring_rules ยืดหยุ่น + generator (V1 `recurring` ยังใช้อยู่) · UI multi-currency (schema พร้อม default THB) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend แล้ว) · balances summary บน dashboard
-- ลำดับเฟสที่เหลือ: V2.1 budgets+recurring_rules → V2.2 tags+subcat → V2.3 (option) multi-currency
+- ✅ Frontend (บัญชี+โอน): แท็บ "บัญชี" `accounts.js` (CRUD + ยอดสด + สินทรัพย์สุทธิ + archive) · ฟอร์มรายการเลือกบัญชี + ประเภท "โอน" (จาก→ไป, validate, ไม่นับรับ/จ่าย) · คอลัมน์บัญชีในตาราง + CSV · multi-day เลือกบัญชี · recurring stamp บัญชีดีฟอลต์ · โอนถูกกันออกจากผลรวม/กราฟ/ปฏิทิน
+- ✅ Frontend (V2.1): **หมวดย่อย** (`categories.js` parent_id + dropdown เยื้องชั้น) · **แท็ก** (`transactions.js`: chip ในฟอร์ม + badge ในตาราง + filter + modal จัดการ) · **งบประมาณ** แท็บใหม่ `budgets.js` (งบรวม/รายหมวด รายเดือน + แถบ 🟢🟡⚠️🔴)
+- ⏳ **ต้องทำก่อนใช้ branch v2:** (1) **backup** (2) รัน `sql/07` + `sql/08` บน Supabase (3) เทสต์ login จริง — บัญชี/โอน/แท็ก/หมวดย่อย/งบ
+- 🔜 **เหลือใน "จัดเต็ม" (ยังไม่ทำ):** recurring_rules ยืดหยุ่น + generator (ยังไม่มี schema — V1 `recurring` ยังใช้อยู่) · UI multi-currency (schema พร้อม default THB) · migration บังคับ `account_id` NOT NULL (หลัง deploy v2 frontend) · balances summary บน dashboard · (option) ผูก `budgets` เข้ากับ dashboard แทน `categories.monthly_budget`
+- หมายเหตุงบ: ตอนนี้มี 2 ที่ — dashboard ยังใช้ `categories.monthly_budget` (V1.5), แท็บ "งบประมาณ" ใหม่ใช้ตาราง `budgets` (รวมงบรวมทุกหมวด). ยังไม่รวมเป็นระบบเดียว
 
 **ตัวเอก: หลายบัญชี + โอนระหว่างบัญชี (ไม่นับเป็นรายรับ/จ่าย)** — เจ้าของอยากได้ชัดเจน
 - ใช้ **schema ใน `TodoListFromClaude` เป็นฐาน** (ออกแบบดี รัดกุม): accounts, transactions เพิ่ม account_id/to_account_id/type 'transfer' + `chk_transfer`, tags, sub-category (parent_id), budgets (per period), recurring_rules + generator, savings_goals, multi-currency (amount_base generated), view `account_balances`, RPC summary/breakdown/budget

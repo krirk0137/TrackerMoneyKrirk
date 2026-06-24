@@ -58,6 +58,7 @@
         <li class="nav-item"><button class="nav-link" data-view="accounts">บัญชี</button></li>
         <li class="nav-item"><button class="nav-link" data-view="calendar">ปฏิทิน</button></li>
         <li class="nav-item"><button class="nav-link" data-view="savings">ออมเงิน</button></li>
+        <li class="nav-item"><button class="nav-link" data-view="budgets">งบประมาณ</button></li>
         <li class="nav-item"><button class="nav-link" data-view="categories">หมวดหมู่</button></li>
         <li class="nav-item"><button class="nav-link" data-view="recurring">ประจำ</button></li>
       </ul>
@@ -236,6 +237,21 @@
           <button id="btn-add-goal" class="btn btn-primary btn-sm">+ เพิ่มเป้าหมาย</button>
         </div>
         <div class="row g-3" id="goal-list"></div>
+      </section>
+
+      <!-- ===== Budgets ===== -->
+      <section id="view-budgets" class="app-view-section d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h2 class="h5 mb-0">งบประมาณรายเดือน</h2>
+          <div class="d-flex gap-2 align-items-center">
+            <input type="month" id="budget-filter-month" class="form-control form-control-sm" style="max-width: 160px;" />
+            <button id="btn-add-budget" class="btn btn-primary btn-sm">+ ตั้งงบ</button>
+          </div>
+        </div>
+        <div class="card"><div class="card-body">
+          <p class="text-muted small mb-3">ตั้งงบรวมทั้งเดือน หรือแยกรายหมวดก็ได้ · 🟢 &lt;50% 🟡 50% ⚠️ 80% 🔴 เกิน</p>
+          <div id="budget-list"></div>
+        </div></div>
       </section>
 
       <!-- ===== Categories ===== -->
@@ -616,6 +632,41 @@
     </div>
   </div>
 
+  <!-- Modal: ตั้ง / แก้ไขงบประมาณ -->
+  <div class="modal fade" id="budget-modal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="budget-form">
+          <div class="modal-header">
+            <h5 class="modal-title" id="budget-modal-title">ตั้งงบ</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="budget-id" />
+            <div class="mb-3">
+              <label class="form-label">หมวด</label>
+              <select id="budget-category" class="form-select"><option value="">รวมทุกหมวด (ทั้งเดือน)</option></select>
+            </div>
+            <div class="row g-2">
+              <div class="col-6 mb-3">
+                <label class="form-label">งบ (บาท)</label>
+                <input type="number" id="budget-amount" class="form-control" step="0.01" min="0.01" required />
+              </div>
+              <div class="col-6 mb-3">
+                <label class="form-label">เดือน</label>
+                <input type="month" id="budget-month" class="form-control" required />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light" data-bs-dismiss="modal">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">บันทึก</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: จัดการแท็ก (เปลี่ยนชื่อ / ลบ) -->
   <div class="modal fade" id="tag-modal" tabindex="-1">
     <div class="modal-dialog">
@@ -646,6 +697,7 @@
   <script type="module" src="app/accounts.js"></script>
   <script type="module" src="app/calendar.js"></script>
   <script type="module" src="app/savings.js"></script>
+  <script type="module" src="app/budgets.js"></script>
   <script type="module" src="app/categories.js"></script>
   <script type="module" src="app/recurring.js"></script>
   <script>
