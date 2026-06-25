@@ -1,0 +1,358 @@
+TrackerMoneyKrirk - Final Architecture Notes (GitHub Pages + Supabase)
+
+Current Stack
+=============
+
+Frontend
+- HTML
+- CSS
+- JavaScript
+- GitHub Pages
+
+Backend
+- Supabase
+  - Database
+  - Edge Functions
+  - Storage (optional)
+
+AI
+- Qwen API Key
+
+Goal
+====
+
+ส่งข้อความหรือรูปจาก
+
+- Discord
+- Telegram
+- LINE (อนาคต)
+
+แล้วบันทึกรายรับรายจ่ายเข้า Supabase อัตโนมัติ
+
+
+Recommended Architecture
+========================
+
+Discord
+Telegram
+LINE
+
+ ↓
+
+Bot Adapter Layer
+
+ ↓
+
+Supabase Edge Function
+
+ ↓
+
+Qwen API
+
+ ↓ Success
+
+Supabase Database
+
+ ↓ Failed
+
+Rule Parser
+
+ ↓
+
+Supabase Database
+
+
+Important Principle
+===================
+
+AI = Optional
+
+ระบบต้องทำงานได้แม้
+
+- Qwen ล่ม
+- API Timeout
+- OCR ล้มเหลว
+- JSON ผิด Format
+
+Fallback Parser ต้องทำงานได้เสมอ
+
+
+Database
+========
+
+Transaction
+
+id
+user_id
+platform
+type
+amount
+category
+note
+source
+created_at
+
+Platform
+
+DISCORD
+TELEGRAM
+LINE
+WEB
+
+Source
+
+TEXT
+IMAGE
+WEB
+
+
+Text Commands
+=============
+
+Expense
+
+-89 กาแฟ
+-350 KFC
+-1200 น้ำมัน
+
+Income
+
++15000 เงินเดือน
++500 ขายเมาส์
+
+Report
+
+สรุปวันนี้
+สรุปเดือนนี้
+รายการล่าสุด
+
+
+Qwen Text Prompt
+================
+
+Convert user message into JSON.
+
+Return only JSON.
+
+Schema:
+
+{
+  "type": "expense",
+  "amount": 0,
+  "category": "",
+  "note": ""
+}
+
+
+Image OCR Flow
+==============
+
+User
+
+ ↓
+
+Upload Slip
+
+ ↓
+
+Bot
+
+ ↓
+
+Download Image
+
+ ↓
+
+Qwen OCR
+
+ ↓
+
+JSON
+
+ ↓
+
+Database
+
+
+Fallback OCR
+============
+
+หาก OCR ล้มเหลว
+
+Bot ตอบกลับ:
+
+ไม่สามารถอ่านสลิปได้
+
+กรุณาพิมพ์รายการ เช่น
+
+-89 กาแฟ
+
+
+Discord Notes
+=============
+
+Priority #1
+
+Pros
+
+- ฟรี
+- API ดีมาก
+- ส่งรูปง่าย
+- Dev ง่าย
+- เหมาะกับโปรเจกต์ส่วนตัว
+
+สามารถ Deploy Bot
+
+- Render
+- Railway
+- VPS
+- PC ที่บ้าน
+
+
+Telegram Notes
+==============
+
+Priority #2
+
+Pros
+
+- ฟรี
+- Bot API ดีมาก
+- ทำง่ายใกล้เคียง Discord
+
+สามารถใช้ Backend เดียวกันกับ Discord
+
+
+LINE Notes
+==========
+
+Priority #3
+
+Pros
+
+- คนไทยใช้เยอะ
+- Webhook ฟรี
+
+Cons
+
+- Setup ยุ่งยากกว่า
+- มีข้อจำกัดมากกว่า Discord/Telegram
+
+สามารถใช้ Backend เดียวกัน
+
+
+Supabase Notes
+==============
+
+ควรมี Edge Function
+
+ชื่อ
+
+process-message
+
+หน้าที่
+
+1. รับข้อความ
+2. เรียก Qwen
+3. Parse JSON
+4. Save Database
+
+ควรมี Edge Function
+
+process-image
+
+หน้าที่
+
+1. รับ URL รูป
+2. เรียก Qwen OCR
+3. Save Database
+
+
+Future Features
+===============
+
+- Auto Category
+- Daily Report
+- Monthly Report
+- Budget Alert
+- Spending Analysis
+- Export CSV
+- Dashboard Analytics
+
+
+Development Roadmap
+===================
+
+Phase 1
+- Supabase Database
+- Discord Bot
+- Rule Parser
+
+Phase 2
+- Telegram Bot
+
+Phase 3
+- Qwen Text
+
+Phase 4
+- Qwen OCR
+
+Phase 5
+- Daily Report
+
+Phase 6
+- LINE OA
+
+Phase 7
+- Analytics
+
+
+Most Important
+
+ห้ามให้ Frontend เรียก Qwen ตรง
+
+Bad
+
+GitHub Pages
+ ↓
+Qwen API Key
+
+เพราะ API Key รั่ว
+
+
+Correct
+
+GitHub Pages
+ ↓
+Supabase Edge Function
+ ↓
+Qwen API
+
+
+Architecture Summary
+====================
+
+Discord / Telegram / LINE
+
+ ↓
+
+Supabase Edge Function
+
+ ↓
+
+Qwen
+
+ ↓ Success
+
+Database
+
+ ↓ Failed
+
+Rule Parser
+
+ ↓
+
+Database
+
+ใช้ Backend ชุดเดียว
+รองรับทุก Platform
