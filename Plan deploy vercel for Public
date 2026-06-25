@@ -1,0 +1,22 @@
+Deploy web to vercel for public use 
+สรุป Deploy GitHub → Vercel (สั้นๆ)
+
+🚀 วิธีเอา GitHub ไปลง Vercel
+เข้า https://vercel.com
+Login ด้วย GitHub
+กด “Add New Project”
+เลือก repo TrackerMoneyKrirk
+กด Import
+ตั้งค่า:
+Framework: Other
+Build Command: เว้นว่าง
+Output: .
+กด Deploy
+🌐 ผลลัพธ์
+ได้เว็บ URL ใหม่จาก Vercel เช่น xxx.vercel.app
+เว็บออนไลน์ใช้งานได้ทันที
+🔄 ข้อดี
+push GitHub → เว็บอัปเดตอัตโนมัติ
+ฟรี
+เร็วกว่า GitHub Pages
+ใช้ทำเว็บจริง + ต่อ backend ได้ในอนาคต
